@@ -62,6 +62,20 @@ with no internet.
 - **Recommendations** — foundation type, settlement, frost, drainage, slope,
   seismic design, and the mandatory ground-investigation next step.
 
+## Live satellite map tools
+
+The map streams **live Esri World Imagery** (true satellite), with HD zoom
+(native to z19, upscaled to z21, retina-aware) and on-map tools:
+
+- **🔍 Site** — fly to the pinned site at high zoom.
+- **📷 Shot** — download a **live satellite screenshot** of the current view
+  (stitched server-side from Esri tiles at the current zoom; endpoint
+  `GET /api/sitemap.png?lat=&lon=&zoom=&grid=`).
+- **⏺ Rec** — record a screen/tab **video** of the live map (native
+  `getDisplayMedia` + `MediaRecorder`; saves `.webm`). Needs a Chromium-based
+  or modern browser and a one-time screen-share permission.
+- **⛶** — fullscreen the map.
+
 ## Save &amp; compare multiple sites
 
 After an assessment, click **Save this site** to store it in the browser. Saved

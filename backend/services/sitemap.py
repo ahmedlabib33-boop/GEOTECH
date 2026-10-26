@@ -36,29 +36,32 @@ async def _fetch_tile(client: httpx.AsyncClient, z: int, x: int, y: int) -> Opti
     return r.content
 
 
-async def site_image(lat: float, lon: float, zoom: int = DEFAULT_ZOOM) -> Optional[bytes]:
+async def site_image(lat: float, lon: float, zoom: int = DEFAULT_ZOOM,
+                     grid: int = GRID) -> Optional[bytes]:
     try:
         from PIL import Image, ImageDraw
     except Exception:
         return None
     try:
+        zoom = max(1, min(int(zoom), 19))
+        grid = max(1, min(int(grid), 6))
         xc, yc = _deg2num(lat, lon, zoom)
-        x0, y0 = int(math.floor(xc)) - GRID // 2, int(math.floor(yc)) - GRID // 2
+        x0, y0 = int(math.floor(xc)) - grid // 2, int(math.floor(yc)) - grid // 2
 
         headers = {"User-Agent": "GeoTech-Satellite/1.0", "Accept": "image/*"}
         timeout = httpx.Timeout(connect=8.0, read=15.0, write=8.0, pool=8.0)
         async with httpx.AsyncClient(timeout=timeout, headers=headers,
                                      follow_redirects=True) as client:
             tasks = [_fetch_tile(client, zoom, x0 + i, y0 + j)
-                     for j in range(GRID) for i in range(GRID)]
+                     for j in range(grid) for i in range(grid)]
             tiles = await asyncio.gather(*tasks, return_exceptions=True)
 
-        canvas = Image.new("RGB", (GRID * TILE_SIZE, GRID * TILE_SIZE), (20, 28, 36))
+        canvas = Image.new("RGB", (grid * TILE_SIZE, grid * TILE_SIZE), (20, 28, 36))
         ok = 0
         for idx, data in enumerate(tiles):
             if not isinstance(data, (bytes, bytearray)) or not data:
                 continue
-            i, j = idx % GRID, idx // GRID
+            i, j = idx % grid, idx // grid
             try:
                 tile = Image.open(io.BytesIO(data)).convert("RGB")
                 canvas.paste(tile, (i * TILE_SIZE, j * TILE_SIZE))

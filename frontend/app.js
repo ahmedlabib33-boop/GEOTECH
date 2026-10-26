@@ -2,11 +2,13 @@
 "use strict";
 
 // ---- Map with live satellite imagery + zoom ------------------------------
-const map = L.map("map", { center: [20, 10], zoom: 3, worldCopyJump: true });
+const map = L.map("map", { center: [20, 10], zoom: 3, worldCopyJump: true,
+  maxZoom: 21, zoomControl: true });
 
 const satellite = L.tileLayer(
   "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-  { maxZoom: 19, attribution: "Imagery © Esri, Maxar, Earthstar Geographics" }
+  { maxZoom: 21, maxNativeZoom: 19, detectRetina: true, crossOrigin: true,
+    attribution: "Imagery © Esri, Maxar, Earthstar Geographics" }
 ).addTo(map);
 
 const labels = L.tileLayer(
@@ -61,6 +63,95 @@ function setSite(lat, lon, fly) {
 }
 
 map.on("click", (e) => setSite(e.latlng.lat, e.latlng.lng, false));
+
+// ---- Map tools: fullscreen, zoom-to-site, screenshot, video recorder -----
+$("fsBtn").onclick = () => {
+  const pane = document.querySelector(".map-pane");
+  if (!document.fullscreenElement) {
+    (pane.requestFullscreen ? pane.requestFullscreen() : Promise.reject())
+      .then(() => setTimeout(() => map.invalidateSize(), 200)).catch(() => {});
+  } else {
+    document.exitFullscreen().then(() => setTimeout(() => map.invalidateSize(), 200));
+  }
+};
+document.addEventListener("fullscreenchange", () => setTimeout(() => map.invalidateSize(), 200));
+
+$("zoomSiteBtn").onclick = () => {
+  const lat = parseFloat($("lat").value), lon = parseFloat($("lon").value);
+  if (Number.isNaN(lat) || Number.isNaN(lon)) {
+    flash("Pick a site first (click the map or search)."); return;
+  }
+  map.flyTo([lat, lon], 19, { duration: 0.9 });
+};
+
+$("shotBtn").onclick = () => {
+  const c = map.getCenter();
+  const z = Math.min(Math.round(map.getZoom()), 19);
+  flash("Capturing live satellite image…");
+  const url = `/api/sitemap.png?lat=${c.lat.toFixed(6)}&lon=${c.lng.toFixed(6)}&zoom=${z}&grid=3`;
+  // Fetch then download (so errors are visible instead of a broken file).
+  fetch(url).then(async (r) => {
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
+    const blob = await r.blob();
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = `satellite_${c.lat.toFixed(4)}_${c.lng.toFixed(4)}_z${z}.png`;
+    a.click(); URL.revokeObjectURL(a.href);
+    flash("Screenshot downloaded.");
+  }).catch((e) => flash("Screenshot failed: " + e.message));
+};
+
+// Screen/tab video recorder via getDisplayMedia + MediaRecorder.
+let mediaRecorder = null, recChunks = [], recStream = null;
+$("recBtn").onclick = async () => {
+  if (mediaRecorder && mediaRecorder.state !== "inactive") {
+    mediaRecorder.stop();
+    return;
+  }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+    flash("Recording not supported in this browser."); return;
+  }
+  try {
+    recStream = await navigator.mediaDevices.getDisplayMedia({
+      video: { frameRate: 30 }, audio: false });
+    const mime = MediaRecorder.isTypeSupported("video/webm;codecs=vp9")
+      ? "video/webm;codecs=vp9" : "video/webm";
+    mediaRecorder = new MediaRecorder(recStream, { mimeType: mime });
+    recChunks = [];
+    mediaRecorder.ondataavailable = (e) => { if (e.data.size) recChunks.push(e.data); };
+    mediaRecorder.onstop = () => {
+      recStream.getTracks().forEach((t) => t.stop());
+      const blob = new Blob(recChunks, { type: "video/webm" });
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `geotech_recording_${Date.now()}.webm`;
+      a.click(); URL.revokeObjectURL(a.href);
+      $("recBtn").textContent = "⏺ Rec";
+      $("recBtn").classList.remove("recording");
+      flash("Recording saved.");
+    };
+    // Stop automatically if the user ends the screen share.
+    recStream.getVideoTracks()[0].addEventListener("ended", () => {
+      if (mediaRecorder && mediaRecorder.state !== "inactive") mediaRecorder.stop();
+    });
+    mediaRecorder.start();
+    $("recBtn").textContent = "⏹ Stop";
+    $("recBtn").classList.add("recording");
+    flash("Recording… click ⏹ Stop (or end sharing) to save.");
+  } catch (e) {
+    flash("Recording cancelled.");
+  }
+};
+
+let _flashT = null;
+function flash(msg) {
+  const el = $("coordReadout");
+  if (!el) return;
+  const prev = el.dataset.base || el.textContent;
+  el.textContent = msg;
+  clearTimeout(_flashT);
+  _flashT = setTimeout(() => { el.textContent = prev; }, 3500);
+}
 
 // ---- Place search (browser-side Nominatim) -------------------------------
 async function searchPlace() {

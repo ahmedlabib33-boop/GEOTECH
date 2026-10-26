@@ -87,6 +87,18 @@ async def compare_pdf(req: CompareRequest):
                     headers={"Content-Disposition": 'attachment; filename="geotech_comparison.pdf"'})
 
 
+@app.get("/api/sitemap.png")
+async def sitemap_png(lat: float, lon: float, zoom: int = 17, grid: int = 3):
+    """Live satellite screenshot: stitched Esri World Imagery around the point."""
+    img = await site_image(lat, lon, zoom=zoom, grid=grid)
+    if not img:
+        raise HTTPException(status_code=502, detail="Could not build satellite image "
+                            "(tile server unreachable or no coverage).")
+    return Response(content=img, media_type="image/png",
+                    headers={"Content-Disposition":
+                             f'attachment; filename="satellite_{lat:.4f}_{lon:.4f}_z{zoom}.png"'})
+
+
 @app.get("/")
 async def index():
     idx = FRONTEND_DIR / "index.html"
