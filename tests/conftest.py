@@ -17,6 +17,7 @@ def offline(monkeypatch):
     import backend.services.climate as climate
     import backend.services.vegetation as vegetation
     import backend.services.hydrology as hydrology
+    import backend.services.windsnow as windsnow
     import backend.services.sentinelhub as sentinelhub
     import backend.services.groundmotion as groundmotion
     import backend.services.geocoding as geocoding
@@ -28,6 +29,7 @@ def offline(monkeypatch):
     async def c(client, lat, lon): return fakes.fake_climate(lat, lon)
     async def v(client, lat, lon): return fakes.fake_vegetation(lat, lon)
     async def h(client, lat, lon, terrain=None): return fakes.fake_hydrology(lat, lon)
+    async def ws(client, lat, lon): return fakes.fake_windsnow(lat, lon)
     async def rev(client, lat, lon): return fakes.fake_location(lat, lon)
     async def geo(client, place): return fakes.fake_location(10.0, 20.0)
     async def sh(lat, lon): return None
@@ -46,6 +48,7 @@ def offline(monkeypatch):
     monkeypatch.setattr(climate, "fetch_climate", c)
     monkeypatch.setattr(vegetation, "fetch_vegetation", v)
     monkeypatch.setattr(hydrology, "fetch_hydrology", h)
+    monkeypatch.setattr(windsnow, "fetch_windsnow", ws)
     monkeypatch.setattr(geocoding, "reverse", rev)
     monkeypatch.setattr(geocoding, "geocode", geo)
     monkeypatch.setattr(sentinelhub, "fetch_sentinel", sh)

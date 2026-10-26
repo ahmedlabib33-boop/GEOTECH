@@ -11,12 +11,13 @@ from datetime import datetime, timezone
 
 from .schemas import (AssessRequest, Assessment, Climate, GeotechParameters,
                       HazardRating, Hydrology, Location, SeismicContext,
-                      SoilProfile, Terrain, Vegetation)
+                      SoilProfile, Terrain, Vegetation, WindSnowStudy)
 from .services.http import new_client, with_retry
 from .services import (geocoding, terrain as terrain_svc, soil as soil_svc,
                        seismic as seismic_svc, climate as climate_svc,
                        vegetation as veg_svc, hydrology as hydro_svc,
-                       sentinelhub as sh_svc, groundmotion as gm_svc)
+                       sentinelhub as sh_svc, groundmotion as gm_svc,
+                       windsnow as windsnow_svc)
 from .engineering.parameters import build_parameters
 from .engineering.borehole import build_parameters_from_borehole, has_usable_data
 from .engineering.hazards import all_hazards
@@ -62,6 +63,9 @@ async def _gather_live(lat: float, lon: float):
             with_retry(lambda: climate_svc.fetch_climate(client, lat, lon)),
             with_retry(lambda: veg_svc.fetch_vegetation(client, lat, lon)),
             with_retry(lambda: hydro_svc.fetch_hydrology(client, lat, lon)),
+            # Wind/snow pulls a long hourly snow series; one attempt keeps the
+            # whole gather within the 60 s function budget (like soil).
+            with_retry(lambda: windsnow_svc.fetch_windsnow(client, lat, lon), attempts=1),
             return_exceptions=True,
         )
     return results
@@ -74,7 +78,7 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
 
     data_mode = "live"
     if True:
-        (t_res, s_res, q_res, c_res, v_res, h_res), sentinel, ground_motion = \
+        (t_res, s_res, q_res, c_res, v_res, h_res, ws_res), sentinel, ground_motion = \
             await asyncio.gather(
                 _gather_live(lat, lon),
                 sh_svc.fetch_sentinel(lat, lon),
@@ -120,6 +124,15 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
         else:
             hydrology = Hydrology(source="unavailable", note="Hydrology data unavailable.")
             warnings.append("Hydrology source unavailable — not substituted (real-only).")
+
+        # Wind/snow extremes (ERA5 Gumbel). Real-only: used only when the fetch
+        # succeeded and produced at least one real design value.
+        if (isinstance(ws_res, WindSnowStudy) and (ws_res.source or "") != "unavailable"
+                and (ws_res.design_gust_ms is not None or ws_res.snow_zone is not None)):
+            wind_snow = ws_res
+        else:
+            wind_snow = None
+            warnings.append("Wind/snow (ERA5 extremes) unavailable — not substituted (real-only).")
 
         # Upgrade NDVI to the Sentinel-2 10 m reading when available (real data).
         if sentinel is not None and sentinel.ndvi is not None:
@@ -202,6 +215,7 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
         suitability=suitability,
         hvac=hvac,
         underground=underground,
+        wind_snow=wind_snow,
         hazards=hazards,
         recommendations=recommendations,
         data_mode=data_mode,

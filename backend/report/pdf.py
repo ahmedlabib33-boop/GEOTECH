@@ -415,6 +415,33 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
             ("Bedding / backfill", ug.bedding_backfill or "-"),
         ], ss, [40 * mm, 138 * mm]))
 
+    # Wind & snow loads
+    ws = a.wind_snow
+    if ws:
+        story.append(Paragraph("Wind &amp; Snow Loads (screening)", ss["H2"]))
+        wsrows = []
+        if ws.design_gust_ms is not None:
+            wsrows += [
+                (f"Design gust ({ws.return_period_years}-yr)",
+                 f"{_s(ws.design_gust_ms)} m/s ({_s(ws.design_gust_kmh)} km/h)"),
+                ("Basic velocity pressure", f"{_s(ws.basic_velocity_pressure_kpa)} kPa"),
+                ("Indicative wall pressure", f"{_s(ws.indicative_wall_pressure_kpa)} kPa"),
+                ("Dominant wind direction", ws.dominant_wind_dir or "-"),
+                ("Wind exposure", ws.wind_class or "-"),
+            ]
+        if ws.snow_zone is not None:
+            wsrows += [
+                ("Snow zone", ws.snow_zone),
+                (f"Ground snow load ({ws.return_period_years}-yr)", f"{_s(ws.ground_snow_load_kpa)} kPa"),
+                ("Flat-roof snow load", f"{_s(ws.roof_snow_load_kpa)} kPa"),
+                ("Design snow depth", f"{_s(ws.design_snow_depth_m)} m"),
+            ]
+        story.append(_kv_table(wsrows, ss, [50 * mm, 128 * mm]))
+        if ws.assumptions:
+            story.append(Paragraph("Assumptions: " + " ".join(ws.assumptions), ss["Disc"]))
+        for n in (ws.notes or []):
+            story.append(Paragraph(n, ss["Disc"]))
+
     # Data sources & provenance
     story.append(Paragraph("Data Sources &amp; Provenance", ss["H2"]))
     prov = [
@@ -422,6 +449,7 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
         ("Soil properties", "Modelled", "ISRIC SoilGrids 250 m (median + 5-95%)"),
         ("Seismicity", "Measured", "USGS earthquake catalogue"),
         ("Climate / frost", "Modelled", "Open-Meteo ERA5 reanalysis (5-yr)"),
+        ("Wind / snow loads", "Modelled", "Open-Meteo ERA5 extremes (Gumbel 50-yr)"),
         ("Vegetation / NDVI", "Measured", "NASA MODIS MOD13Q1 250 m"),
         ("Hydrology / flood", "Measured", "OpenStreetMap + Open-Meteo GloFAS"),
         ("Parameters / hazards", "Estimated", "Derived (Terzaghi/Vesic + references)"),

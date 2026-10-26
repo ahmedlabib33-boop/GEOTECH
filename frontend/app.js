@@ -628,6 +628,33 @@ function render(a) {
     for (const n of (ug.notes || [])) html += `<div class="meter-why">${esc(n)}</div>`;
   }
 
+  const wsd = a.wind_snow;
+  if (wsd) {
+    const T = wsd.return_period_years || 50;
+    html += head("🌬️", "Wind &amp; snow loads", "estimated",
+      "ERA5 extremes (" + T + "-yr Gumbel)", null);
+    const rows = [];
+    if (wsd.design_gust_ms != null) {
+      rows.push(["Design gust (" + T + "-yr)",
+        u(wsd.design_gust_ms, " m/s") + (wsd.design_gust_kmh != null ? " (" + wsd.design_gust_kmh + " km/h)" : "")]);
+      rows.push(["Basic velocity pressure", u(wsd.basic_velocity_pressure_kpa, " kPa")]);
+      rows.push(["Indicative wall pressure", u(wsd.indicative_wall_pressure_kpa, " kPa")]);
+      if (wsd.dominant_wind_dir) rows.push(["Dominant wind direction", wsd.dominant_wind_dir]);
+      if (wsd.wind_class) rows.push(["Wind exposure", wsd.wind_class]);
+    }
+    if (wsd.snow_zone != null) {
+      rows.push(["Snow zone", wsd.snow_zone]);
+      if (wsd.ground_snow_load_kpa != null)
+        rows.push(["Ground snow load (" + T + "-yr)", u(wsd.ground_snow_load_kpa, " kPa")]);
+      if (wsd.roof_snow_load_kpa != null)
+        rows.push(["Flat-roof snow load", u(wsd.roof_snow_load_kpa, " kPa")]);
+      if (wsd.design_snow_depth_m != null)
+        rows.push(["Design snow depth", u(wsd.design_snow_depth_m, " m")]);
+    }
+    html += kv(rows);
+    for (const n of (wsd.notes || [])) html += `<div class="meter-why">${esc(n)}</div>`;
+  }
+
   html += `<h3>✅ Recommendations</h3>`;
   for (const r of a.recommendations)
     html += `<div class="rec"><b>${esc(r.category)}.</b> ${esc(r.text)}</div>`;

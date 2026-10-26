@@ -10,7 +10,7 @@ from datetime import date
 
 from backend.schemas import (Climate, GroundMotion, Hydrology, Location,
                              SeismicContext, SoilLayer, SoilProfile, Terrain,
-                             Vegetation)
+                             Vegetation, WindSnowStudy)
 from backend.engineering.classification import usda_texture, usda_to_uscs
 
 DEPTHS = [("0-5cm", 0, 5), ("5-15cm", 5, 15), ("15-30cm", 15, 30),
@@ -95,6 +95,18 @@ def fake_hydrology(lat: float, lon: float) -> Hydrology:
                      nearest_water_lat=round(lat + off, 6), nearest_water_lon=round(lon + off * 0.6, 6),
                      river_discharge_m3s=round(_pseudo(lon, lat + 4) ** 2 * 1500, 1),
                      source="TEST hydrology")
+
+
+def fake_windsnow(lat: float, lon: float) -> WindSnowStudy:
+    from backend.engineering.windsnow import build_windsnow
+    base = _pseudo(lat, lon + 2)
+    gusts = [round(22 + base * 18 + (i % 5) * 0.8, 1) for i in range(15)]  # annual max gusts
+    coldness = max(0.0, (abs(lat) - 30.0) / 60.0)  # snow only at higher latitudes
+    depths = [round(max(0.0, coldness * (0.3 + _pseudo(lat + i, lon))), 2) for i in range(15)]
+    study = build_windsnow(wind_annual_max_gust_ms=gusts, snow_annual_max_depth_m=depths,
+                           dominant_wind_dir="SW", years=15)
+    study.source = "TEST ERA5 extremes"
+    return study
 
 
 def fake_seismic(lat: float, lon: float) -> SeismicContext:

@@ -293,6 +293,31 @@ class UndergroundStudy(BaseModel):
     source: Optional[str] = None
 
 
+# --------------------------------------------------------------------------- #
+# Wind & snow load study (from real ERA5 extremes, screening level)
+# --------------------------------------------------------------------------- #
+class WindSnowStudy(BaseModel):
+    years_analyzed: Optional[int] = None
+    return_period_years: int = 50
+    # Wind
+    mean_annual_max_gust_ms: Optional[float] = None
+    design_gust_ms: Optional[float] = None           # T-year Gumbel 10 m gust
+    design_gust_kmh: Optional[float] = None
+    basic_velocity_pressure_kpa: Optional[float] = None  # q = 0.5*rho*V^2
+    indicative_wall_pressure_kpa: Optional[float] = None  # q * combined Cp
+    dominant_wind_dir: Optional[str] = None
+    wind_class: Optional[str] = None
+    # Snow
+    max_observed_snow_depth_m: Optional[float] = None
+    design_snow_depth_m: Optional[float] = None       # T-year Gumbel depth
+    ground_snow_load_kpa: Optional[float] = None
+    roof_snow_load_kpa: Optional[float] = None
+    snow_zone: Optional[str] = None                   # Negligible..Very heavy
+    assumptions: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+    source: Optional[str] = None
+
+
 class HazardRating(BaseModel):
     name: str
     level: str  # Low / Moderate / High / Very High
@@ -324,6 +349,7 @@ class Assessment(BaseModel):
     suitability: Optional[Suitability] = None
     hvac: Optional[HvacStudy] = None
     underground: Optional[UndergroundStudy] = None
+    wind_snow: Optional[WindSnowStudy] = None
     hazards: list[HazardRating] = Field(default_factory=list)
     recommendations: list[Recommendation] = Field(default_factory=list)
     commentary: Optional[str] = None  # optional LLM engineering commentary
