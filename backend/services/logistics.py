@@ -9,6 +9,7 @@ nothing mapped within its search radius is reported as such, never invented.
 """
 from __future__ import annotations
 
+import asyncio
 import math
 from typing import Optional
 
@@ -20,11 +21,13 @@ from ..schemas import LogisticsPOI, SiteLogistics
 # queries per IP. A moderate timeout keeps a slow response from dominating the
 # 60 s function budget — on failure the layer degrades to a note (real-only).
 OVERPASS = "https://overpass-api.de/api/interpreter"
-_TIMEOUT = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=10.0)
+# Lean query answers fast; a short read keeps two attempts inside the 60 s budget.
+_TIMEOUT = httpx.Timeout(connect=10.0, read=20.0, write=10.0, pool=10.0)
 
-# (kind, radius_m) per category.
+# (kind, radius_m) per category. Kept modest so the Overpass scan is light and
+# returns quickly; sparse, high-value features (ports/airports) still get range.
 _PORT_R, _AIR_R, _ROAD_R, _RAIL_R, _URBAN_R, _QUARRY_R, _POWER_R = (
-    200_000, 150_000, 25_000, 120_000, 120_000, 80_000, 40_000)
+    120_000, 100_000, 12_000, 60_000, 80_000, 40_000, 25_000)
 
 
 def _haversine_km(lat1, lon1, lat2, lon2) -> float:
@@ -57,21 +60,22 @@ def _classify(tags: dict) -> Optional[str]:
 
 
 def _query(lat: float, lon: float) -> str:
+    # Nodes where the feature is usually a node (place, rail, ferry) to keep the
+    # query cheap; ways/relations only where needed (roads, quarries, aerodromes,
+    # harbours), each with a tight result cap.
     return f"""
-    [out:json][timeout:30];
+    [out:json][timeout:18];
     (
       nwr(around:{_PORT_R},{lat},{lon})[harbour];
-      nwr(around:{_PORT_R},{lat},{lon})[industrial=port];
-      nwr(around:{_PORT_R},{lat},{lon})[landuse=harbour];
-      nwr(around:{_PORT_R},{lat},{lon})[amenity=ferry_terminal];
+      node(around:{_PORT_R},{lat},{lon})[amenity=ferry_terminal];
       nwr(around:{_AIR_R},{lat},{lon})[aeroway=aerodrome];
       way(around:{_ROAD_R},{lat},{lon})[highway~"^(motorway|trunk|primary)$"];
-      nwr(around:{_RAIL_R},{lat},{lon})[railway~"^(station|halt)$"];
-      nwr(around:{_URBAN_R},{lat},{lon})[place~"^(city|town)$"];
+      node(around:{_RAIL_R},{lat},{lon})[railway=station];
+      node(around:{_URBAN_R},{lat},{lon})[place~"^(city|town)$"];
       nwr(around:{_QUARRY_R},{lat},{lon})[landuse=quarry];
       nwr(around:{_POWER_R},{lat},{lon})[power=substation];
     );
-    out tags center 400;
+    out tags center 60;
     """
 
 
@@ -88,19 +92,26 @@ def _rating(port, road, urban) -> tuple[str, str]:
     rating = ("Easy" if score <= 1 else "Moderate" if score <= 4
               else "Difficult" if score <= 7 else "Remote")
     bits = []
-    bits.append("no seaport within 200 km" if port is None else f"port ~{port:.0f} km")
-    bits.append("no major road within 25 km" if road is None else f"major road ~{road:.0f} km")
-    bits.append("no town within 120 km" if urban is None else f"town ~{urban:.0f} km")
+    bits.append("no seaport within 120 km" if port is None else f"port ~{port:.0f} km")
+    bits.append("no major road within 12 km" if road is None else f"major road ~{road:.0f} km")
+    bits.append("no town within 80 km" if urban is None else f"town ~{urban:.0f} km")
     return rating, "; ".join(bits)
 
 
 async def fetch_logistics(client: httpx.AsyncClient, lat: float, lon: float) -> SiteLogistics:
     out = SiteLogistics(source="OpenStreetMap Overpass")
-    try:
-        r = await client.post(OVERPASS, data={"data": _query(lat, lon)}, timeout=_TIMEOUT)
-        r.raise_for_status()
-        elements = r.json().get("elements", [])
-    except Exception:
+    q = _query(lat, lon)
+    elements = None
+    for attempt in range(2):   # Overpass can briefly reject a concurrent query
+        try:
+            r = await client.post(OVERPASS, data={"data": q}, timeout=_TIMEOUT)
+            r.raise_for_status()
+            elements = r.json().get("elements", [])
+            break
+        except Exception:
+            if attempt == 0:
+                await asyncio.sleep(1.5)
+    if elements is None:
         out.note = "Logistics lookup (OSM Overpass) unavailable at this time."
         return out
 
