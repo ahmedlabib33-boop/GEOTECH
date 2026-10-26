@@ -22,6 +22,8 @@ from .engineering.borehole import build_parameters_from_borehole, has_usable_dat
 from .engineering.hazards import all_hazards
 from .engineering.recommendations import build_recommendations
 from .engineering.suitability import build_suitability
+from .engineering.hvac import build_hvac
+from .engineering.utilities import build_underground
 from . import llm
 
 DISCLAIMER = (
@@ -180,6 +182,8 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
     suitability = build_suitability(hazards, params, terrain)
     recommendations = build_recommendations(terrain, soil, seismic, params, hazards,
                                             climate, vegetation, hydrology)
+    hvac = build_hvac(climate, req.building_floor_area_m2, req.building_type)
+    underground = build_underground(soil, climate, hydrology, terrain, gw_depth)
 
     assessment = Assessment(
         project_name=req.project_name or "Untitled Site",
@@ -196,6 +200,8 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
         borehole=req.borehole if has_usable_data(req.borehole) else None,
         parameters=params,
         suitability=suitability,
+        hvac=hvac,
+        underground=underground,
         hazards=hazards,
         recommendations=recommendations,
         data_mode=data_mode,

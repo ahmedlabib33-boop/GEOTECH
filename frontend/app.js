@@ -282,6 +282,9 @@ function payload() {
   if (!Number.isNaN(fl) && fl > 0) body.foundation_length_m = fl;
   const iv = parseFloat($("insar").value);
   if (!Number.isNaN(iv)) body.insar_velocity_mm_yr = iv;
+  const ba = parseFloat($("bldgArea").value);
+  if (!Number.isNaN(ba) && ba > 0) body.building_floor_area_m2 = ba;
+  if ($("bldgType").value) body.building_type = $("bldgType").value;
   const bh = readBorehole();
   if (bh) body.borehole = bh;
   return body;
@@ -589,6 +592,41 @@ function render(a) {
     ["Nearest significant", s.nearest_significant_km != null ? s.nearest_significant_km + " km" : "—"],
     ["Indicative PGA", s.estimated_pga_g != null ? s.estimated_pga_g + " g" : "—"],
   ]);
+
+  const hv = a.hvac;
+  if (hv) {
+    html += head("❄️", "HVAC study", "estimated", "derived from ERA5 climate", null);
+    const rows = [
+      ["Climate zone", hv.climate_zone],
+      ["Heating / cooling degree-days", u(hv.hdd18) + " / " + u(hv.cdd18) + " (base 18°C)"],
+      ["Design temps (heat / cool)", u(hv.heating_design_temp_c, "°C") + " / " + u(hv.cooling_design_temp_c, "°C")],
+    ];
+    if (hv.peak_heating_kw != null) {
+      rows.push(["Peak heating load", u(hv.peak_heating_kw, " kW")]);
+      rows.push(["Peak cooling load", u(hv.peak_cooling_kw, " kW") + (hv.cooling_tons ? " (" + hv.cooling_tons + " tons)" : "")]);
+      rows.push(["Annual heating / cooling", u(hv.annual_heating_kwh, " kWh") + " / " + u(hv.annual_cooling_kwh, " kWh")]);
+    }
+    html += kv(rows);
+    html += `<div class="rec"><b>System.</b> ${esc(hv.recommended_system)}</div>`;
+    if (hv.note) html += `<div class="meter-why">${esc(hv.note)}</div>`;
+  }
+
+  const ug = a.underground;
+  if (ug) {
+    html += head("🔧", "Underground networks &amp; excavation", "estimated",
+      "derived from soil / groundwater / frost", null);
+    html += kv([
+      ["Infiltration / SuDS", u(ug.infiltration_class) + (ug.soakaway_feasibility ? " — " + ug.soakaway_feasibility : "")],
+      ["Soil corrosivity", u(ug.soil_corrosivity)],
+      ["Min. pipe burial depth", u(ug.min_burial_depth_m, " m")],
+      ["Dewatering", u(ug.dewatering)],
+      ["Trench support", u(ug.trench_support)],
+      ["Stormwater", u(ug.stormwater_note)],
+    ]);
+    if (ug.pipe_material_guidance) html += `<div class="rec"><b>Pipe material.</b> ${esc(ug.pipe_material_guidance)}</div>`;
+    if (ug.bedding_backfill) html += `<div class="rec"><b>Bedding/backfill.</b> ${esc(ug.bedding_backfill)}</div>`;
+    for (const n of (ug.notes || [])) html += `<div class="meter-why">${esc(n)}</div>`;
+  }
 
   html += `<h3>✅ Recommendations</h3>`;
   for (const r of a.recommendations)

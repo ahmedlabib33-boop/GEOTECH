@@ -67,10 +67,14 @@ def fake_climate(lat: float, lon: float) -> Climate:
     mean_t = round(27 - abs(lat) * 0.55 + (_pseudo(lon, lat) - 0.5) * 6, 1)
     min_t = round(mean_t - 8 - abs(lat) * 0.25, 1)
     fdd = round(max(0.0, -min_t) * 25, 0) if min_t < 0 else 0.0
+    hdd = round(max(0.0, (18 - mean_t)) * 300, 0)
+    cdd = round(max(0.0, (mean_t - 18)) * 200, 0)
     return Climate(year=date.today().year - 1, years_averaged=5, annual_precip_mm=precip,
-                   min_temp_c=min_t, mean_temp_c=mean_t, freezing_degree_days=fdd,
-                   frost_depth_m=frost_depth_from_fdd(fdd), wetness_class=wetness(precip),
-                   source="TEST ERA5")
+                   min_temp_c=min_t, mean_temp_c=mean_t, max_temp_c=round(mean_t + 10, 1),
+                   freezing_degree_days=fdd, frost_depth_m=frost_depth_from_fdd(fdd),
+                   wetness_class=wetness(precip), hdd18=hdd, cdd18=cdd,
+                   heating_design_temp_c=round(min_t - 2, 1),
+                   cooling_design_temp_c=round(mean_t + 12, 1), source="TEST ERA5")
 
 
 def fake_vegetation(lat: float, lon: float) -> Vegetation:

@@ -54,7 +54,7 @@ async def fetch_climate(client: httpx.AsyncClient, lat: float, lon: float) -> Cl
         params={
             "latitude": lat, "longitude": lon,
             "start_date": f"{start_yr}-01-01", "end_date": f"{end_yr}-12-31",
-            "daily": "precipitation_sum,temperature_2m_min,temperature_2m_mean",
+            "daily": "precipitation_sum,temperature_2m_min,temperature_2m_mean,temperature_2m_max",
             "timezone": "auto",
         },
     )
@@ -63,12 +63,21 @@ async def fetch_climate(client: httpx.AsyncClient, lat: float, lon: float) -> Cl
     precip = [v for v in daily.get("precipitation_sum", []) if v is not None]
     tmin = [v for v in daily.get("temperature_2m_min", []) if v is not None]
     tmean = [v for v in daily.get("temperature_2m_mean", []) if v is not None]
+    tmax = [v for v in daily.get("temperature_2m_max", []) if v is not None]
 
     n = NORMALS_YEARS
     annual_precip = round(sum(precip) / n, 0) if precip else None      # mean annual
     min_t = round(min(tmin), 1) if tmin else None                     # coldest observed
     mean_t = round(sum(tmean) / len(tmean), 1) if tmean else None
+    max_t = round(max(tmax), 1) if tmax else None
     fdd = round(sum(-t for t in tmean if t < 0) / n, 0) if tmean else 0.0  # mean annual FDD
+
+    # Degree-days (base 18 C), mean annual.
+    hdd = round(sum(max(18.0 - t, 0.0) for t in tmean) / n, 0) if tmean else None
+    cdd = round(sum(max(t - 18.0, 0.0) for t in tmean) / n, 0) if tmean else None
+    # Design temperatures: ~99% winter (1st pct of daily min), ~1% summer (99th pct of daily max).
+    heating_design = round(_percentile(tmin, 1), 1) if tmin else None
+    cooling_design = round(_percentile(tmax, 99), 1) if tmax else None
 
     return Climate(
         year=end_yr,
@@ -76,8 +85,23 @@ async def fetch_climate(client: httpx.AsyncClient, lat: float, lon: float) -> Cl
         annual_precip_mm=annual_precip,
         min_temp_c=min_t,
         mean_temp_c=mean_t,
+        max_temp_c=max_t,
         freezing_degree_days=fdd,
         frost_depth_m=frost_depth_from_fdd(fdd),
         wetness_class=wetness(annual_precip),
+        hdd18=hdd,
+        cdd18=cdd,
+        heating_design_temp_c=heating_design,
+        cooling_design_temp_c=cooling_design,
         source=f"Open-Meteo ERA5 reanalysis ({start_yr}-{end_yr} normals)",
     )
+
+
+def _percentile(values: list[float], pct: float) -> float:
+    if not values:
+        return 0.0
+    s = sorted(values)
+    k = (len(s) - 1) * (pct / 100.0)
+    lo = int(k)
+    hi = min(lo + 1, len(s) - 1)
+    return s[lo] + (s[hi] - s[lo]) * (k - lo)

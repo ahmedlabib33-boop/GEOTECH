@@ -62,6 +62,14 @@ hazards without real inputs are marked *Insufficient data*.
   Severe) combining hazards, bearing, settlement and slope.
 - **Recommendations** — foundation type, settlement, frost, drainage, slope,
   seismic design, and the mandatory ground-investigation next step.
+- **HVAC study** — heating/cooling degree-days, design temperatures and climate
+  zone from real ERA5 data; with an optional floor area + building type, a
+  screening peak heating/cooling load, equipment sizing (kW/tons) and annual
+  energy, plus a system recommendation.
+- **Underground-networks / excavation study** — infiltration (SuDS) class, soil
+  corrosivity and pipe-material guidance, frost-protected burial depth, trench
+  support, dewatering, stormwater/drainage and bedding/backfill — all derived
+  from the site's real soil/groundwater/frost/rainfall/terrain.
 
 ## Live satellite map tools
 

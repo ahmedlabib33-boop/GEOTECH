@@ -55,6 +55,12 @@ class AssessRequest(BaseModel):
         None, ge=-500, le=500,
         description="Measured InSAR ground-motion velocity (+uplift/-subsidence)"
     )
+    building_floor_area_m2: Optional[float] = Field(
+        None, gt=0, le=1_000_000, description="Gross floor area for HVAC load screening"
+    )
+    building_type: Optional[str] = Field(
+        None, description="residential | office | retail | industrial | warehouse"
+    )
     borehole: Optional[Borehole] = Field(
         None, description="Measured ground data; overrides the satellite soil estimate"
     )
@@ -142,9 +148,15 @@ class Climate(BaseModel):
     annual_precip_mm: Optional[float] = None
     min_temp_c: Optional[float] = None
     mean_temp_c: Optional[float] = None
+    max_temp_c: Optional[float] = None
     freezing_degree_days: Optional[float] = None
     frost_depth_m: Optional[float] = None
     wetness_class: Optional[str] = None
+    # Degree-days and design conditions (for HVAC)
+    hdd18: Optional[float] = Field(None, description="Heating degree-days, base 18C (annual)")
+    cdd18: Optional[float] = Field(None, description="Cooling degree-days, base 18C (annual)")
+    heating_design_temp_c: Optional[float] = Field(None, description="~99% winter design temp")
+    cooling_design_temp_c: Optional[float] = Field(None, description="~1% summer design temp")
     source: Optional[str] = None
     note: Optional[str] = None
 
@@ -239,6 +251,48 @@ class Suitability(BaseModel):
     drivers: list[str] = Field(default_factory=list)
 
 
+# --------------------------------------------------------------------------- #
+# HVAC study (from real climate, screening level)
+# --------------------------------------------------------------------------- #
+class HvacStudy(BaseModel):
+    climate_zone: Optional[str] = None
+    hdd18: Optional[float] = None
+    cdd18: Optional[float] = None
+    heating_design_temp_c: Optional[float] = None
+    cooling_design_temp_c: Optional[float] = None
+    indoor_heating_setpoint_c: float = 21.0
+    indoor_cooling_setpoint_c: float = 24.0
+    # Load screening (only when a floor area is supplied)
+    floor_area_m2: Optional[float] = None
+    building_type: Optional[str] = None
+    peak_heating_kw: Optional[float] = None
+    peak_cooling_kw: Optional[float] = None
+    cooling_tons: Optional[float] = None
+    annual_heating_kwh: Optional[float] = None
+    annual_cooling_kwh: Optional[float] = None
+    recommended_system: Optional[str] = None
+    assumptions: list[str] = Field(default_factory=list)
+    source: Optional[str] = None
+    note: Optional[str] = None
+
+
+# --------------------------------------------------------------------------- #
+# Underground networks / excavation study
+# --------------------------------------------------------------------------- #
+class UndergroundStudy(BaseModel):
+    infiltration_class: Optional[str] = None       # permeability of near-surface soil
+    soakaway_feasibility: Optional[str] = None
+    soil_corrosivity: Optional[str] = None
+    pipe_material_guidance: Optional[str] = None
+    min_burial_depth_m: Optional[float] = None       # frost-protected cover
+    trench_support: Optional[str] = None
+    dewatering: Optional[str] = None
+    stormwater_note: Optional[str] = None
+    bedding_backfill: Optional[str] = None
+    notes: list[str] = Field(default_factory=list)
+    source: Optional[str] = None
+
+
 class HazardRating(BaseModel):
     name: str
     level: str  # Low / Moderate / High / Very High
@@ -268,6 +322,8 @@ class Assessment(BaseModel):
     borehole: Optional[Borehole] = None
     parameters: GeotechParameters
     suitability: Optional[Suitability] = None
+    hvac: Optional[HvacStudy] = None
+    underground: Optional[UndergroundStudy] = None
     hazards: list[HazardRating] = Field(default_factory=list)
     recommendations: list[Recommendation] = Field(default_factory=list)
     commentary: Optional[str] = None  # optional LLM engineering commentary

@@ -375,6 +375,46 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
             gmrows.append(("EGMS viewer", gm.egms_viewer_url))
         story.append(_kv_table(gmrows, ss, [40 * mm, 138 * mm]))
 
+    # HVAC study
+    hv = a.hvac
+    if hv:
+        story.append(Paragraph("HVAC Study (screening)", ss["H2"]))
+        rows = [
+            ("Climate zone", hv.climate_zone or "-"),
+            ("Degree-days (HDD/CDD, base 18C)", f"{_s(hv.hdd18)} / {_s(hv.cdd18)}"),
+            ("Design temps (heat/cool)",
+             f"{_s(hv.heating_design_temp_c)} C / {_s(hv.cooling_design_temp_c)} C"),
+        ]
+        if hv.peak_heating_kw is not None:
+            rows += [
+                ("Floor area / type", f"{_s(hv.floor_area_m2)} m² / {hv.building_type or '-'}"),
+                ("Peak heating load", f"{_s(hv.peak_heating_kw)} kW"),
+                ("Peak cooling load", f"{_s(hv.peak_cooling_kw)} kW "
+                 f"({_s(hv.cooling_tons)} tons)"),
+                ("Annual heating/cooling", f"{_s(hv.annual_heating_kwh)} / "
+                 f"{_s(hv.annual_cooling_kwh)} kWh"),
+            ]
+        rows.append(("Recommended system", hv.recommended_system or "-"))
+        story.append(_kv_table(rows, ss, [50 * mm, 128 * mm]))
+        if hv.assumptions:
+            story.append(Paragraph("Assumptions: " + " ".join(hv.assumptions), ss["Disc"]))
+
+    # Underground networks / excavation
+    ug = a.underground
+    if ug:
+        story.append(Paragraph("Underground Networks &amp; Excavation (screening)", ss["H2"]))
+        story.append(_kv_table([
+            ("Infiltration / SuDS", f"{_s(ug.infiltration_class)} "
+             f"({ug.soakaway_feasibility or '-'})"),
+            ("Soil corrosivity", _s(ug.soil_corrosivity)),
+            ("Pipe material", ug.pipe_material_guidance or "-"),
+            ("Min. burial depth", f"{_s(ug.min_burial_depth_m)} m (frost-protected cover)"),
+            ("Trench support", ug.trench_support or "-"),
+            ("Dewatering", ug.dewatering or "-"),
+            ("Stormwater", ug.stormwater_note or "-"),
+            ("Bedding / backfill", ug.bedding_backfill or "-"),
+        ], ss, [40 * mm, 138 * mm]))
+
     # Data sources & provenance
     story.append(Paragraph("Data Sources &amp; Provenance", ss["H2"]))
     prov = [
