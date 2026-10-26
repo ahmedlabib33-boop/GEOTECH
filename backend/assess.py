@@ -62,11 +62,11 @@ async def _hydro_then_logistics(client, lat: float, lon: float):
     60 s function budget and 504 the whole assessment. On timeout each degrades
     to 'unavailable' (real-only) while every other layer still returns."""
     try:
-        hydro = await asyncio.wait_for(hydro_svc.fetch_hydrology(client, lat, lon), 18.0)
+        hydro = await asyncio.wait_for(hydro_svc.fetch_hydrology(client, lat, lon), 14.0)
     except Exception as e:
         hydro = e
     try:
-        logi = await asyncio.wait_for(logistics_svc.fetch_logistics(client, lat, lon), 16.0)
+        logi = await asyncio.wait_for(logistics_svc.fetch_logistics(client, lat, lon), 12.0)
     except Exception as e:
         logi = e
     return hydro, logi

@@ -24,7 +24,7 @@ _last_good: dict[str, str | None] = {"url": None}
 
 
 async def overpass_elements(client: httpx.AsyncClient, query: str,
-                            read: float = 6.0) -> list:
+                            read: float = 5.0) -> list:
     """POST an Overpass QL query, failing over across mirrors. Returns the
     `elements` list from the first endpoint that answers 200. Timeouts are kept
     short so a flaky/overloaded instance fails fast; the caller bounds the total
