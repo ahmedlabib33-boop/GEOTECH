@@ -142,7 +142,8 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False,
             "overriding the satellite soil estimate.")
     else:
         params = build_parameters(soil, terrain, climate,
-                                  req.foundation_width_m, req.foundation_depth_m)
+                                  req.foundation_width_m, req.foundation_depth_m,
+                                  req.foundation_length_m)
 
     hazards = all_hazards(terrain, soil, seismic, climate, vegetation, hydrology, gw_depth)
     suitability = build_suitability(hazards, params, terrain)

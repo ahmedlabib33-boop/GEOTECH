@@ -65,6 +65,62 @@ def settlement_sensitivity(settlement_mm: float) -> str:
     return "Very high (settlement-governed — deep/raft foundations indicated)"
 
 
+def shape_factors(phi_deg: float, b: float, l: float, nq: float, nc: float):
+    """Vesic shape factors (sc, sq, sgamma) for a B x L footing."""
+    bl = min(b / l, 1.0) if l else 1.0
+    if phi_deg <= 0:
+        return 1 + 0.2 * bl, 1.0, 1.0
+    sc = 1 + (nq / nc) * bl
+    sq = 1 + bl * math.tan(math.radians(phi_deg))
+    sg = max(1 - 0.4 * bl, 0.6)
+    return sc, sq, sg
+
+
+def depth_factors(phi_deg: float, b: float, df: float, nc: float):
+    """Vesic depth factors (dc, dq, dgamma)."""
+    if b <= 0:
+        return 1.0, 1.0, 1.0
+    ratio = df / b
+    k = ratio if ratio <= 1 else math.atan(ratio)
+    if phi_deg <= 0:
+        return 1 + 0.4 * k, 1.0, 1.0
+    phi = math.radians(phi_deg)
+    dq = 1 + 2 * math.tan(phi) * (1 - math.sin(phi)) ** 2 * k
+    dc = dq - (1 - dq) / (nc * math.tan(phi))
+    return dc, dq, 1.0
+
+
+def allowable_bearing_full(c_kpa: float, phi_deg: float, gamma_kn_m3: float,
+                           b: float, l: float, df: float,
+                           gw_depth_m: Optional[float] = None,
+                           fs: float = FACTOR_OF_SAFETY):
+    """Vesic general bearing capacity with shape, depth and groundwater effects.
+
+    Returns (q_ult_gross, q_net_allowable) in kPa.
+    """
+    nc, nq, ng = bearing_factors(phi_deg)
+    sc, sq, sg = shape_factors(phi_deg, b, l, nq, nc)
+    dc, dq, dg = depth_factors(phi_deg, b, df, nc)
+
+    gw = 9.81  # unit weight of water
+    gamma_eff_surcharge = gamma_kn_m3
+    gamma_eff_base = gamma_kn_m3
+    if gw_depth_m is not None:
+        if gw_depth_m <= df:                      # water at/above founding level
+            gamma_eff_surcharge = max(gamma_kn_m3 - gw, 1.0)
+            gamma_eff_base = max(gamma_kn_m3 - gw, 1.0)
+        elif gw_depth_m < df + b:                 # within the failure wedge
+            frac = (gw_depth_m - df) / b
+            gamma_eff_base = max(gamma_kn_m3 - gw * (1 - frac), 1.0)
+
+    q_sur = gamma_eff_surcharge * df              # effective overburden at base
+    q_ult = (c_kpa * nc * sc * dc
+             + q_sur * nq * sq * dq
+             + 0.5 * gamma_eff_base * b * ng * sg * dg)
+    q_net_ult = max(q_ult - q_sur, 0.0)
+    return q_ult, q_net_ult / fs
+
+
 def slope_reduction(slope_deg: Optional[float]) -> float:
     """Reduction factor applied to allowable bearing on sloping ground."""
     if slope_deg is None or slope_deg < 5:

@@ -61,6 +61,37 @@ def test_flood_hazard_higher_near_water_lowland():
     assert low.name == "Flooding / inundation"
 
 
+def test_full_bearing_groundwater_reduces():
+    from backend.engineering.bearing import allowable_bearing_full
+    _, dry = allowable_bearing_full(0, 32, 19, 2.0, 2.0, 1.5, gw_depth_m=None)
+    _, wet = allowable_bearing_full(0, 32, 19, 2.0, 2.0, 1.5, gw_depth_m=0.5)
+    assert wet < dry        # water table at surface lowers bearing
+
+
+def test_full_bearing_shape_effect():
+    from backend.engineering.bearing import allowable_bearing_full
+    _, square = allowable_bearing_full(0, 32, 19, 2.0, 2.0, 1.5)
+    _, strip = allowable_bearing_full(0, 32, 19, 2.0, 100.0, 1.5)
+    assert abs(square - strip) > 1   # shape factors change the result
+
+
+def test_influence_weighted_uses_zone():
+    from backend.schemas import SoilProfile, SoilLayer, Terrain, Climate
+    from backend.engineering.parameters import build_parameters
+    # Sand near surface, stiff clay deeper; deep footing should feel the clay.
+    layers = [
+        SoilLayer(depth_label="0-5cm", top_cm=0, bottom_cm=30, usda_texture="Sand",
+                  sand_pct=90, silt_pct=5, clay_pct=5),
+        SoilLayer(depth_label="30-200cm", top_cm=30, bottom_cm=200, usda_texture="Clay",
+                  sand_pct=10, silt_pct=20, clay_pct=70),
+    ]
+    sp = SoilProfile(layers=layers, dominant_usda_texture="Sand")
+    shallow = build_parameters(sp, Terrain(slope_deg=0), Climate(), 1.0, 0.0)
+    deep = build_parameters(sp, Terrain(slope_deg=0), Climate(), 1.0, 1.5)
+    # Shallow zone (0-1.5 m) includes the sand; deep zone (1.5-3 m) is all clay.
+    assert deep.cohesion_kpa > shallow.cohesion_kpa
+
+
 def test_borehole_override_sand():
     from backend.schemas import Borehole, BoreholeLayer
     from backend.engineering.borehole import build_parameters_from_borehole, has_usable_data

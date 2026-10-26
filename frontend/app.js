@@ -131,6 +131,8 @@ function payload() {
     foundation_width_m: parseFloat($("fw").value) || 2.0,
     foundation_depth_m: parseFloat($("fd").value) || 1.5,
   };
+  const fl = parseFloat($("fl").value);
+  if (!Number.isNaN(fl) && fl > 0) body.foundation_length_m = fl;
   const bh = readBorehole();
   if (bh) body.borehole = bh;
   return body;

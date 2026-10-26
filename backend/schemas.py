@@ -48,6 +48,9 @@ class AssessRequest(BaseModel):
     foundation_depth_m: float = Field(
         1.5, ge=0, le=30, description="Assumed founding depth Df (m) below grade"
     )
+    foundation_length_m: Optional[float] = Field(
+        None, gt=0, le=100, description="Footing length L (m); defaults to B (square)"
+    )
     borehole: Optional[Borehole] = Field(
         None, description="Measured ground data; overrides the satellite soil estimate"
     )
