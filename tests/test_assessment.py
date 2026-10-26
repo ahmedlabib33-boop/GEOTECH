@@ -22,6 +22,8 @@ def test_demo_assessment_complete():
     assert a.parameters.seismic_site_class
     assert a.climate.annual_precip_mm is not None
     assert a.climate.frost_depth_m is not None
+    assert a.vegetation.ndvi is not None
+    assert a.vegetation.cover_class
     assert a.suitability is not None
     assert 0 <= a.suitability.score <= 100
     assert a.suitability.rating in ("Favourable", "Marginal", "Challenging", "Severe")

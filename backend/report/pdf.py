@@ -182,8 +182,20 @@ def build_pdf(a: Assessment) -> bytes:
             ("Source", cl.source or "-"),
         ], ss, [48 * mm, 130 * mm]))
 
+    # Vegetation / NDVI
+    vg = a.vegetation
+    if vg and vg.ndvi is not None:
+        story.append(Paragraph("5. Vegetation &amp; Surface Cover (NDVI)", ss["H2"]))
+        story.append(_kv_table([
+            ("NDVI", f"{vg.ndvi}"),
+            ("Observation date", vg.observation_date or "-"),
+            ("Cover class", vg.cover_class or "-"),
+            ("Ground condition", vg.ground_description or "-"),
+            ("Source", vg.source or "-"),
+        ], ss, [48 * mm, 130 * mm]))
+
     # Hazards
-    story.append(Paragraph("5. Geohazard Screening", ss["H2"]))
+    story.append(Paragraph("6. Geohazard Screening", ss["H2"]))
     hrows = [[Paragraph("<b>Hazard</b>", ss["CellB"]),
               Paragraph("<b>Rating</b>", ss["CellB"]),
               Paragraph("<b>Basis</b>", ss["CellB"])]]
@@ -206,7 +218,7 @@ def build_pdf(a: Assessment) -> bytes:
 
     # Seismic detail
     s = a.seismic
-    story.append(Paragraph("6. Seismic Context", ss["H2"]))
+    story.append(Paragraph("7. Seismic Context", ss["H2"]))
     story.append(_kv_table([
         ("Search radius", f"{s.search_radius_km:.0f} km"),
         ("M≥4 events on record", str(s.event_count)),
@@ -218,7 +230,7 @@ def build_pdf(a: Assessment) -> bytes:
     ], ss, [48 * mm, 130 * mm]))
 
     # Recommendations
-    story.append(Paragraph("7. Preliminary Recommendations", ss["H2"]))
+    story.append(Paragraph("8. Preliminary Recommendations", ss["H2"]))
     for r in a.recommendations:
         story.append(Paragraph(f"<b>{r.category}.</b> {r.text}", ss["Body"]))
         story.append(Spacer(1, 3))

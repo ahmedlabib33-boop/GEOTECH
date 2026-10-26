@@ -22,8 +22,16 @@ const topo = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", {
   maxZoom: 17, attribution: "© OpenTopoMap (CC-BY-SA)",
 });
 
+// Sentinel-2 cloudless annual mosaic (EOX) — real Sentinel-2, no API key.
+const sentinel = L.tileLayer(
+  "https://tiles.maps.eox.at/wmts/1.0.0/s2cloudless-2021_3857/default/g/{z}/{y}/{x}.jpg",
+  { maxNativeZoom: 15, maxZoom: 19,
+    attribution: "Sentinel-2 cloudless 2021 © EOX IT Services (contains modified Copernicus Sentinel data)" }
+);
+
 L.control.layers(
-  { "Satellite": satellite, "Street map": streets, "Topographic": topo },
+  { "Satellite (Esri)": satellite, "Sentinel-2 (cloudless)": sentinel,
+    "Street map": streets, "Topographic": topo },
   { "Place labels": labels },
   { position: "topright", collapsed: true }
 ).addTo(map);
@@ -215,7 +223,7 @@ function render(a) {
   badge.textContent = a.data_mode === "live" ? "LIVE DATA" : "DEMO DATA";
   badge.className = "mode-badge " + a.data_mode;
 
-  const t = a.terrain, p = a.parameters, s = a.seismic, cl = a.climate || {};
+  const t = a.terrain, p = a.parameters, s = a.seismic, cl = a.climate || {}, vg = a.vegetation || {};
   let html = "";
 
   if (a.warnings && a.warnings.length)
@@ -264,6 +272,18 @@ function render(a) {
     ["Mean / min temp", (cl.mean_temp_c ?? "—") + " / " + (cl.min_temp_c ?? "—") + " °C"],
     ["Frost penetration", cl.frost_depth_m != null ? cl.frost_depth_m + " m" : "—"],
   ]);
+
+  if (vg.ndvi != null) {
+    const np = Math.max(0, Math.min(1, vg.ndvi)) * 100;
+    const ncol = vg.ndvi < 0.1 ? "#b08968" : vg.ndvi < 0.3 ? "#c9b458"
+      : vg.ndvi < 0.6 ? "#7cb342" : "#2e7d32";
+    html += `<h3>🌱 Vegetation / NDVI</h3>`;
+    html += `<div class="meter-row"><div class="meter-head">
+      <span>NDVI ${vg.ndvi.toFixed(2)} · ${esc(vg.cover_class)}</span>
+      <span class="sub" style="margin:0">${esc(vg.observation_date)}</span></div>
+      <div class="meter"><div class="meter-fill" style="width:${np}%;background:${ncol}"></div></div>
+      <div class="meter-why">${esc(vg.ground_description)}</div></div>`;
+  }
 
   html += `<h3>🌍 Seismic context</h3>`;
   html += kv([

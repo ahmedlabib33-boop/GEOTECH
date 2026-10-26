@@ -3,7 +3,8 @@ from __future__ import annotations
 
 from typing import Optional
 
-from ..schemas import Climate, HazardRating, SeismicContext, SoilProfile, Terrain
+from ..schemas import (Climate, HazardRating, SeismicContext, SoilProfile,
+                       Terrain, Vegetation)
 
 
 def _level(score: float) -> str:
@@ -24,20 +25,26 @@ def _top_clay(soil: SoilProfile) -> Optional[float]:
 
 
 def landslide_hazard(terrain: Terrain, soil: SoilProfile,
-                     climate: Optional[Climate] = None) -> HazardRating:
+                     climate: Optional[Climate] = None,
+                     vegetation: Optional[Vegetation] = None) -> HazardRating:
     slope = terrain.slope_deg or 0.0
     clay = _top_clay(soil) or 0.0
     precip = (climate.annual_precip_mm if climate else None) or 0.0
+    ndvi = vegetation.ndvi if vegetation else None
     # Slope dominates; clay-rich soils and high rainfall raise susceptibility.
     rain_factor = min(precip / 2000.0, 1.0)
     score = (min(slope / 35.0, 1.0) * 0.65
              + min(clay / 60.0, 1.0) * 0.20
              + rain_factor * 0.15)
+    # Dense vegetation (high NDVI) reinforces slopes -> reduce susceptibility.
+    if ndvi is not None:
+        score *= (1.0 - 0.20 * max(0.0, min(ndvi, 1.0)))
     rationale = (
         f"Slope {slope:.1f}deg from DEM"
         + (f", clay ~{clay:.0f}% near surface" if clay else "")
-        + (f", annual rainfall ~{precip:.0f} mm" if precip else "")
-        + ". Steep, clay-rich, wet slopes are most prone to instability."
+        + (f", rainfall ~{precip:.0f} mm/yr" if precip else "")
+        + (f", NDVI {ndvi:.2f} (root reinforcement)" if ndvi is not None else "")
+        + ". Steep, clay-rich, wet, sparsely vegetated slopes are most unstable."
     )
     return HazardRating(name="Slope instability / landslide", level=_level(score),
                         score=round(min(score, 1.0), 2), rationale=rationale)
@@ -97,9 +104,10 @@ def liquefaction_hazard(soil: SoilProfile, seismic: SeismicContext,
 
 
 def all_hazards(terrain: Terrain, soil: SoilProfile, seismic: SeismicContext,
-                climate: Optional[Climate] = None) -> list[HazardRating]:
+                climate: Optional[Climate] = None,
+                vegetation: Optional[Vegetation] = None) -> list[HazardRating]:
     return [
-        landslide_hazard(terrain, soil, climate),
+        landslide_hazard(terrain, soil, climate, vegetation),
         seismic_hazard(seismic),
         expansive_soil_hazard(soil),
         liquefaction_hazard(soil, seismic, terrain),

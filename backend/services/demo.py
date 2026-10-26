@@ -10,7 +10,8 @@ import math
 
 from datetime import date
 
-from ..schemas import (Climate, Location, SeismicContext, SoilLayer, SoilProfile, Terrain)
+from ..schemas import (Climate, Location, SeismicContext, SoilLayer, SoilProfile,
+                       Terrain, Vegetation)
 from ..engineering.classification import usda_texture, usda_to_uscs
 
 DEPTHS = [("0-5cm", 0, 5), ("5-15cm", 5, 15), ("15-30cm", 15, 30),
@@ -81,6 +82,18 @@ def demo_climate(lat: float, lon: float) -> Climate:
         freezing_degree_days=fdd, frost_depth_m=frost_depth_from_fdd(fdd),
         wetness_class=wetness(precip),
         source="DEMO (sample data — not a real climate query)", note="Offline demo mode.")
+
+
+def demo_vegetation(lat: float, lon: float) -> Vegetation:
+    from .vegetation import cover_class
+    # Greener near the equator / wetter pseudo-value; arid or cold -> low NDVI.
+    base = _pseudo(lat + 5, lon - 2)
+    ndvi = round(max(0.02, min(0.9, base * max(0.1, math.cos(math.radians(lat))) + 0.05)), 3)
+    cls, desc = cover_class(ndvi)
+    return Vegetation(ndvi=ndvi, observation_date=f"{date.today().year - 1}-07-12",
+                      cover_class=cls, ground_description=desc,
+                      source="DEMO (sample data — not a real MODIS query)",
+                      note="Offline demo mode.")
 
 
 def demo_seismic(lat: float, lon: float) -> SeismicContext:

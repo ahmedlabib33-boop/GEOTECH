@@ -118,6 +118,18 @@ class Climate(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# Vegetation (Sentinel-2 / MODIS NDVI)
+# --------------------------------------------------------------------------- #
+class Vegetation(BaseModel):
+    ndvi: Optional[float] = None
+    observation_date: Optional[str] = None
+    cover_class: Optional[str] = None
+    ground_description: Optional[str] = None
+    source: Optional[str] = None
+    note: Optional[str] = None
+
+
+# --------------------------------------------------------------------------- #
 # Engineering-derived parameters & findings
 # --------------------------------------------------------------------------- #
 class BearingPoint(BaseModel):
@@ -176,6 +188,7 @@ class Assessment(BaseModel):
     soil: SoilProfile
     seismic: SeismicContext
     climate: Climate = Field(default_factory=Climate)
+    vegetation: Vegetation = Field(default_factory=Vegetation)
     parameters: GeotechParameters
     suitability: Optional[Suitability] = None
     hazards: list[HazardRating] = Field(default_factory=list)

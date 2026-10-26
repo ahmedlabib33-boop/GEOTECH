@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 from ..schemas import (Climate, GeotechParameters, HazardRating, Recommendation,
-                       SeismicContext, SoilProfile, Terrain)
+                       SeismicContext, SoilProfile, Terrain, Vegetation)
 
 
 def build_recommendations(terrain: Terrain, soil: SoilProfile,
                           seismic: SeismicContext, params: GeotechParameters,
                           hazards: list[HazardRating],
-                          climate: Climate | None = None) -> list[Recommendation]:
+                          climate: Climate | None = None,
+                          vegetation: Vegetation | None = None) -> list[Recommendation]:
     recs: list[Recommendation] = []
     hz = {h.name: h for h in hazards}
 
@@ -114,6 +115,26 @@ def build_recommendations(terrain: Terrain, soil: SoilProfile,
             text=(f"{climate.wetness_class} climate (~{climate.annual_precip_mm:.0f} mm/yr): "
                   "design robust surface and subsurface drainage, erosion control, and "
                   "waterproofing; expect a shallow/variable water table.")))
+
+    # Vegetation / site clearing (NDVI)
+    if vegetation and vegetation.ndvi is not None:
+        if vegetation.ndvi >= 0.6:
+            recs.append(Recommendation(
+                category="Site clearing / topsoil",
+                text=(f"Dense vegetation (NDVI {vegetation.ndvi:.2f}): budget for clearing "
+                      "and stripping organic topsoil before founding; expect a wetter, "
+                      "organic-rich near surface and strong slope root reinforcement.")))
+        elif vegetation.ndvi >= 0.3:
+            recs.append(Recommendation(
+                category="Site clearing / topsoil",
+                text=(f"Moderate vegetation (NDVI {vegetation.ndvi:.2f}): strip and stockpile "
+                      "organic topsoil; provide erosion/sediment control during works.")))
+        elif vegetation.ndvi < 0.1:
+            recs.append(Recommendation(
+                category="Surface conditions",
+                text=(f"Sparse/bare surface (NDVI {vegetation.ndvi:.2f}): verify whether "
+                      "shallow rock, duricrust or impervious cover is present, and plan "
+                      "wind/water erosion control for exposed ground.")))
 
     # Always: site investigation
     recs.append(Recommendation(

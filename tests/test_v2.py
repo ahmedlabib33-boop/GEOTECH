@@ -37,3 +37,22 @@ def test_settlement_increases_with_load():
     high = elastic_settlement_mm(300, 2.0, 30)
     assert high > low >= 0
     assert "tolerance" in settlement_sensitivity(10) or settlement_sensitivity(10)
+
+
+def test_ndvi_cover_classes():
+    from backend.services.vegetation import cover_class
+    assert cover_class(0.05)[0].startswith("Barren")
+    assert cover_class(0.2)[0].startswith("Sparse")
+    assert cover_class(0.45)[0].startswith("Moderate")
+    assert cover_class(0.8)[0].startswith("Dense")
+
+
+def test_vegetation_reduces_landslide():
+    from backend.schemas import Terrain, SoilProfile, Climate, Vegetation
+    from backend.engineering.hazards import landslide_hazard
+    terr = Terrain(slope_deg=25.0)
+    soil = SoilProfile()
+    clim = Climate(annual_precip_mm=1500)
+    bare = landslide_hazard(terr, soil, clim, Vegetation(ndvi=0.05))
+    green = landslide_hazard(terr, soil, clim, Vegetation(ndvi=0.85))
+    assert green.score < bare.score  # vegetation stabilises slopes

@@ -12,10 +12,11 @@ from datetime import datetime, timezone
 from typing import Optional
 
 from .schemas import (AssessRequest, Assessment, Climate, Location, SeismicContext,
-                      SoilProfile, Terrain)
+                      SoilProfile, Terrain, Vegetation)
 from .services.http import new_client
 from .services import (geocoding, terrain as terrain_svc, soil as soil_svc,
-                       seismic as seismic_svc, climate as climate_svc)
+                       seismic as seismic_svc, climate as climate_svc,
+                       vegetation as veg_svc)
 from .services import demo
 from .engineering.parameters import build_parameters
 from .engineering.hazards import all_hazards
@@ -63,6 +64,7 @@ async def _gather_live(lat: float, lon: float):
             soil_svc.fetch_soil(client, lat, lon),
             seismic_svc.fetch_seismic(client, lat, lon),
             climate_svc.fetch_climate(client, lat, lon),
+            veg_svc.fetch_vegetation(client, lat, lon),
             return_exceptions=True,
         )
     return results
@@ -78,10 +80,11 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False) -> Assessm
         soil = demo.demo_soil(lat, lon)
         seismic = demo.demo_seismic(lat, lon)
         climate = demo.demo_climate(lat, lon)
+        vegetation = demo.demo_vegetation(lat, lon)
         data_mode = "demo"
     else:
         data_mode = "live"
-        t_res, s_res, q_res, c_res = await _gather_live(lat, lon)
+        t_res, s_res, q_res, c_res, v_res = await _gather_live(lat, lon)
 
         if isinstance(t_res, Terrain):
             terrain = t_res
@@ -109,11 +112,19 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False) -> Assessm
             warnings.append(f"Climate source unavailable ({reason}); using sample data.")
             climate = demo.demo_climate(lat, lon)
 
+        if isinstance(v_res, Vegetation) and v_res.ndvi is not None:
+            vegetation = v_res
+        else:
+            reason = type(v_res).__name__ if isinstance(v_res, Exception) else "no coverage"
+            warnings.append(f"Vegetation/NDVI source unavailable ({reason}); using sample data.")
+            vegetation = demo.demo_vegetation(lat, lon)
+
     params = build_parameters(soil, terrain, climate,
                               req.foundation_width_m, req.foundation_depth_m)
-    hazards = all_hazards(terrain, soil, seismic, climate)
+    hazards = all_hazards(terrain, soil, seismic, climate, vegetation)
     suitability = build_suitability(hazards, params, terrain)
-    recommendations = build_recommendations(terrain, soil, seismic, params, hazards, climate)
+    recommendations = build_recommendations(terrain, soil, seismic, params, hazards,
+                                            climate, vegetation)
 
     return Assessment(
         project_name=req.project_name or "Untitled Site",
@@ -123,6 +134,7 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False) -> Assessm
         soil=soil,
         seismic=seismic,
         climate=climate,
+        vegetation=vegetation,
         parameters=params,
         suitability=suitability,
         hazards=hazards,

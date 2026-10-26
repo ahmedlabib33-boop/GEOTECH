@@ -27,6 +27,8 @@ a site-specific investigation by a qualified geotechnical engineer.
 | Soil (clay/sand/silt, density, pH, SOC) | [ISRIC SoilGrids v2.0](https://soilgrids.org/) — 250 m global | USDA texture → approx. USCS group |
 | Seismicity | [USGS Earthquake Catalog](https://earthquake.usgs.gov/) | M≥4 events within 300 km |
 | Climate (rainfall, temperature, frost) | [Open-Meteo ERA5](https://open-meteo.com/) reanalysis | annual precip + freezing-degree-days |
+| Vegetation / NDVI | [NASA ORNL MODIS](https://modis.ornl.gov/) MOD13Q1 (250 m) | topsoil/clearing, erosion, root reinforcement |
+| Sentinel-2 imagery | [EOX Sentinel-2 cloudless](https://s2maps.eu/) basemap | selectable map layer (modified Copernicus data) |
 | Geocoding | [OSM Nominatim](https://nominatim.org/) | place name ⇄ coordinates |
 | Satellite basemap | Esri World Imagery tiles | with street / topographic layers |
 
