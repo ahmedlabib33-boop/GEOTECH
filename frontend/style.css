@@ -86,3 +86,9 @@ table.soil td{padding:4px;border-bottom:1px solid var(--line);text-align:center;
 .chart-title{font-size:11px;color:var(--muted);margin-bottom:2px}
 .chart{display:block}
 @media(max-width:520px){.suit{flex-direction:column;text-align:center}.suit-drivers{text-align:left}}
+
+/* ---- AI commentary panel ---- */
+.commentary{background:#0b1a16;border:1px solid #1f3d33;border-left:3px solid #2a7f62;border-radius:10px;padding:12px 14px;margin:4px 0 8px}
+.commentary-head{font-weight:700;color:#8fe0bd;font-size:13px;margin-bottom:6px}
+.commentary p{margin:6px 0;font-size:12.5px;line-height:1.55;color:var(--text)}
+.commentary-foot{font-size:10px;color:var(--muted);margin-top:6px;font-style:italic}

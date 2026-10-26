@@ -27,7 +27,8 @@ app = FastAPI(
 
 @app.get("/api/health")
 async def health():
-    return {"status": "ok", "force_demo": FORCE_DEMO}
+    return {"status": "ok", "force_demo": FORCE_DEMO,
+            "ai_available": bool(os.environ.get("ANTHROPIC_API_KEY"))}
 
 
 def _demo_flag(demo: bool | None) -> bool:
@@ -35,9 +36,9 @@ def _demo_flag(demo: bool | None) -> bool:
 
 
 @app.post("/api/assess", response_model=Assessment)
-async def assess(req: AssessRequest, demo: bool = False):
+async def assess(req: AssessRequest, demo: bool = False, ai: bool = False):
     try:
-        return await run_assessment(req, demo_mode=_demo_flag(demo))
+        return await run_assessment(req, demo_mode=_demo_flag(demo), ai_commentary=ai)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # pragma: no cover - defensive
@@ -45,9 +46,9 @@ async def assess(req: AssessRequest, demo: bool = False):
 
 
 @app.post("/api/report.pdf")
-async def report_pdf(req: AssessRequest, demo: bool = False):
+async def report_pdf(req: AssessRequest, demo: bool = False, ai: bool = False):
     try:
-        assessment = await run_assessment(req, demo_mode=_demo_flag(demo))
+        assessment = await run_assessment(req, demo_mode=_demo_flag(demo), ai_commentary=ai)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     pdf = build_pdf(assessment)

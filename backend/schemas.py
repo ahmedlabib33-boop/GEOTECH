@@ -67,6 +67,8 @@ class SoilLayer(BaseModel):
     top_cm: int
     bottom_cm: int
     clay_pct: Optional[float] = None
+    clay_low_pct: Optional[float] = None   # SoilGrids Q0.05
+    clay_high_pct: Optional[float] = None  # SoilGrids Q0.95
     sand_pct: Optional[float] = None
     silt_pct: Optional[float] = None
     coarse_fragments_pct: Optional[float] = None
@@ -81,6 +83,7 @@ class SoilProfile(BaseModel):
     layers: list[SoilLayer] = Field(default_factory=list)
     dominant_usda_texture: Optional[str] = None
     dominant_uscs_group: Optional[str] = None
+    texture_confidence: Optional[str] = None  # High/Moderate/Low from SoilGrids spread
     source: Optional[str] = None
     note: Optional[str] = None
 
@@ -107,6 +110,7 @@ class SeismicContext(BaseModel):
 # --------------------------------------------------------------------------- #
 class Climate(BaseModel):
     year: Optional[int] = None
+    years_averaged: Optional[int] = None
     annual_precip_mm: Optional[float] = None
     min_temp_c: Optional[float] = None
     mean_temp_c: Optional[float] = None
@@ -208,6 +212,8 @@ class Assessment(BaseModel):
     suitability: Optional[Suitability] = None
     hazards: list[HazardRating] = Field(default_factory=list)
     recommendations: list[Recommendation] = Field(default_factory=list)
+    commentary: Optional[str] = None  # optional LLM engineering commentary
+    commentary_model: Optional[str] = None
     data_mode: str = "live"  # "live" or "demo"
     warnings: list[str] = Field(default_factory=list)
     disclaimer: str = ""

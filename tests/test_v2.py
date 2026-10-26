@@ -61,6 +61,32 @@ def test_flood_hazard_higher_near_water_lowland():
     assert low.name == "Flooding / inundation"
 
 
+def test_soil_confidence_from_spread():
+    from backend.schemas import SoilProfile, SoilLayer
+    from backend.services.soil import _assign_confidence
+    tight = SoilProfile(layers=[SoilLayer(depth_label="0-5cm", top_cm=0, bottom_cm=5,
+                                          clay_low_pct=20, clay_high_pct=28)])
+    wide = SoilProfile(layers=[SoilLayer(depth_label="0-5cm", top_cm=0, bottom_cm=5,
+                                         clay_low_pct=10, clay_high_pct=55)])
+    _assign_confidence(tight)
+    _assign_confidence(wide)
+    assert tight.texture_confidence == "High"
+    assert wide.texture_confidence == "Low"
+
+
+def test_llm_disabled_without_key(monkeypatch):
+    import backend.llm as llm
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    from backend.schemas import (Assessment, Location, Terrain, SoilProfile,
+                                 SeismicContext, GeotechParameters)
+    a = Assessment(project_name="x", generated_utc="now",
+                   location=Location(lat=0, lon=0), terrain=Terrain(),
+                   soil=SoilProfile(), seismic=SeismicContext(search_radius_km=300),
+                   parameters=GeotechParameters())
+    text, model = llm.generate_commentary(a)
+    assert text is None and model is None
+
+
 def test_vegetation_reduces_landslide():
     from backend.schemas import Terrain, SoilProfile, Climate, Vegetation
     from backend.engineering.hazards import landslide_hazard

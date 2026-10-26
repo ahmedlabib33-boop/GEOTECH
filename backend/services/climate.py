@@ -38,18 +38,22 @@ def wetness(precip_mm: Optional[float]) -> Optional[str]:
     return "Very wet"
 
 
-def _reference_year() -> int:
+NORMALS_YEARS = 5  # average the last N full calendar years for a stable normal
+
+
+def _last_full_year() -> int:
     # ERA5 archive lags a few days; the previous full calendar year is safe.
     return date.today().year - 1
 
 
 async def fetch_climate(client: httpx.AsyncClient, lat: float, lon: float) -> Climate:
-    yr = _reference_year()
+    end_yr = _last_full_year()
+    start_yr = end_yr - (NORMALS_YEARS - 1)
     r = await client.get(
         ARCHIVE,
         params={
             "latitude": lat, "longitude": lon,
-            "start_date": f"{yr}-01-01", "end_date": f"{yr}-12-31",
+            "start_date": f"{start_yr}-01-01", "end_date": f"{end_yr}-12-31",
             "daily": "precipitation_sum,temperature_2m_min,temperature_2m_mean",
             "timezone": "auto",
         },
@@ -60,18 +64,20 @@ async def fetch_climate(client: httpx.AsyncClient, lat: float, lon: float) -> Cl
     tmin = [v for v in daily.get("temperature_2m_min", []) if v is not None]
     tmean = [v for v in daily.get("temperature_2m_mean", []) if v is not None]
 
-    annual_precip = round(sum(precip), 0) if precip else None
-    min_t = round(min(tmin), 1) if tmin else None
+    n = NORMALS_YEARS
+    annual_precip = round(sum(precip) / n, 0) if precip else None      # mean annual
+    min_t = round(min(tmin), 1) if tmin else None                     # coldest observed
     mean_t = round(sum(tmean) / len(tmean), 1) if tmean else None
-    fdd = round(sum(-t for t in tmean if t < 0), 0) if tmean else 0.0
+    fdd = round(sum(-t for t in tmean if t < 0) / n, 0) if tmean else 0.0  # mean annual FDD
 
     return Climate(
-        year=yr,
+        year=end_yr,
+        years_averaged=n,
         annual_precip_mm=annual_precip,
         min_temp_c=min_t,
         mean_temp_c=mean_t,
         freezing_degree_days=fdd,
         frost_depth_m=frost_depth_from_fdd(fdd),
         wetness_class=wetness(annual_precip),
-        source="Open-Meteo ERA5 reanalysis",
+        source=f"Open-Meteo ERA5 reanalysis ({start_yr}-{end_yr} normals)",
     )

@@ -57,14 +57,17 @@ def demo_soil(lat: float, lon: float) -> SoilProfile:
         tex = usda_texture(sand, silt, clay)
         profile.layers.append(SoilLayer(
             depth_label=label, top_cm=top, bottom_cm=bottom,
-            clay_pct=round(clay, 1), sand_pct=round(sand, 1), silt_pct=round(silt, 1),
+            clay_pct=round(clay, 1),
+            clay_low_pct=round(max(clay - 8, 0), 1), clay_high_pct=round(clay + 8, 1),
+            sand_pct=round(sand, 1), silt_pct=round(silt, 1),
             coarse_fragments_pct=round(_pseudo(lat, lon + idx) * 12, 1),
             bulk_density_kg_m3=round(1300 + _pseudo(lon, lat + idx) * 400, 0),
             organic_carbon_pct=round(max(2.0 - idx * 0.3, 0.1), 2),
             ph=round(6.0 + _pseudo(lat + idx, lon) * 2, 1),
             usda_texture=tex, uscs_group=usda_to_uscs(tex)))
-    from .soil import _summarise
+    from .soil import _summarise, _assign_confidence
     _summarise(profile)
+    _assign_confidence(profile)
     return profile
 
 
@@ -77,7 +80,7 @@ def demo_climate(lat: float, lon: float) -> Climate:
     min_t = round(mean_t - 8 - abs(lat) * 0.25, 1)
     fdd = round(max(0.0, -min_t) * 25, 0) if min_t < 0 else 0.0
     return Climate(
-        year=date.today().year - 1,
+        year=date.today().year - 1, years_averaged=5,
         annual_precip_mm=precip, min_temp_c=min_t, mean_temp_c=mean_t,
         freezing_degree_days=fdd, frost_depth_m=frost_depth_from_fdd(fdd),
         wetness_class=wetness(precip),

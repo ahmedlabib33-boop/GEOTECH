@@ -22,6 +22,7 @@ from .engineering.parameters import build_parameters
 from .engineering.hazards import all_hazards
 from .engineering.recommendations import build_recommendations
 from .engineering.suitability import build_suitability
+from . import llm
 
 DISCLAIMER = (
     "This is an automated PRELIMINARY desk study derived from open remote-sensing "
@@ -71,7 +72,8 @@ async def _gather_live(lat: float, lon: float):
     return results
 
 
-async def run_assessment(req: AssessRequest, demo_mode: bool = False) -> Assessment:
+async def run_assessment(req: AssessRequest, demo_mode: bool = False,
+                         ai_commentary: bool = False) -> Assessment:
     warnings: list[str] = []
     location = await _resolve_location(req, demo_mode)
     lat, lon = location.lat, location.lon
@@ -136,7 +138,7 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False) -> Assessm
     recommendations = build_recommendations(terrain, soil, seismic, params, hazards,
                                             climate, vegetation, hydrology)
 
-    return Assessment(
+    assessment = Assessment(
         project_name=req.project_name or "Untitled Site",
         generated_utc=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
         location=location,
@@ -154,3 +156,14 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False) -> Assessm
         warnings=warnings,
         disclaimer=DISCLAIMER,
     )
+
+    if ai_commentary:
+        text, model = await asyncio.to_thread(llm.generate_commentary, assessment)
+        if text:
+            assessment.commentary = text
+            assessment.commentary_model = model
+        else:
+            assessment.warnings.append(
+                "AI commentary unavailable (no ANTHROPIC_API_KEY set or model error).")
+
+    return assessment

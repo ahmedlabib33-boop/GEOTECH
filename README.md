@@ -62,6 +62,32 @@ with no internet.
 - **Recommendations** — foundation type, settlement, frost, drainage, slope,
   seismic design, and the mandatory ground-investigation next step.
 
+## Accuracy features
+
+- **Soil uncertainty** — SoilGrids is queried for the **median (Q0.5) and the
+  5th/95th percentiles**; the report shows the clay **range** and a **model
+  confidence** rating (High/Moderate/Low) from the prediction spread, instead of
+  a single point value.
+- **Climate normals** — rainfall/temperature are **averaged over the last 5 full
+  years** (not a single year) for a more representative normal.
+
+## Optional AI engineering commentary
+
+Tick **"AI engineering commentary"** (or `?ai=true`) to add an LLM-written
+*Engineering Commentary* that **interprets the computed data only** — it is
+system-prompted to never invent a value and to defer to a ground investigation.
+It activates only when an API key is set:
+
+```bash
+export ANTHROPIC_API_KEY=sk-ant-...        # required to enable commentary
+export GEOTECH_LLM_MODEL=claude-3-5-sonnet-latest   # optional override
+```
+
+On Vercel, add `ANTHROPIC_API_KEY` under **Project → Settings → Environment
+Variables**. Without a key the app runs normally and simply omits the
+commentary. The LLM does **not** make the underlying data more accurate — it
+only reads and explains the numbers the pipeline already produced.
+
 ## Quick start
 
 ```bash

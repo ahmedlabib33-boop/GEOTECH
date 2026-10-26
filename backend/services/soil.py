@@ -34,10 +34,13 @@ def _depth_bounds(label: str) -> tuple[int, int]:
     return int(top), int(bottom)
 
 
-def _value(layer: dict, depth_label: str) -> Optional[float]:
+def _value(layer: dict, depth_label: str, stat: str = "mean") -> Optional[float]:
     for d in layer.get("depths", []):
         if d.get("label") == depth_label:
-            v = (d.get("values") or {}).get("mean")
+            vals = d.get("values") or {}
+            v = vals.get(stat)
+            if v is None and stat != "mean":   # fall back to mean / median
+                v = vals.get("mean") or vals.get("Q0.5")
             return None if v is None else float(v)
     return None
 
@@ -54,7 +57,10 @@ def _convert(prop: str, raw_target: Optional[float]) -> Optional[float]:
 
 
 async def fetch_soil(client: httpx.AsyncClient, lat: float, lon: float) -> SoilProfile:
-    params = [("lon", lon), ("lat", lat), ("value", "mean")]
+    # Request the median (Q0.5) and the 5th/95th percentiles so we can report
+    # the prediction spread, plus mean for the non-texture properties.
+    params = [("lon", lon), ("lat", lat)]
+    params += [("value", s) for s in ("mean", "Q0.05", "Q0.5", "Q0.95")]
     params += [("property", p) for p in PROPERTIES]
     params += [("depth", d) for d in DEPTHS]
 
@@ -72,27 +78,30 @@ async def fetch_soil(client: httpx.AsyncClient, lat: float, lon: float) -> SoilP
         um = lm.get("unit_measure") or {}
         dfactor[name] = float(um.get("d_factor") or _FALLBACK_DFACTOR.get(name, 1))
 
-    def prop_value(prop: str, depth: str) -> Optional[float]:
+    def prop_value(prop: str, depth: str, stat: str = "mean") -> Optional[float]:
         lm = by_prop.get(prop)
         if lm is None:
             return None
-        raw = _value(lm, depth)
+        raw = _value(lm, depth, stat)
         if raw is None:
             return None
         return _convert(prop, raw / (dfactor.get(prop) or 1))
 
-    profile = SoilProfile(source="ISRIC SoilGrids v2.0 (250 m)")
+    profile = SoilProfile(source="ISRIC SoilGrids v2.0 (250 m, median + 5th/95th pct)")
     for depth in DEPTHS:
         top, bottom = _depth_bounds(depth)
-        clay = prop_value("clay", depth)
-        sand = prop_value("sand", depth)
-        silt = prop_value("silt", depth)
+        # Use the median (Q0.5) for texture; fall back to mean.
+        clay = prop_value("clay", depth, "Q0.5") or prop_value("clay", depth)
+        sand = prop_value("sand", depth, "Q0.5") or prop_value("sand", depth)
+        silt = prop_value("silt", depth, "Q0.5") or prop_value("silt", depth)
         texture = usda_texture(sand, silt, clay)
         layer = SoilLayer(
             depth_label=depth,
             top_cm=top,
             bottom_cm=bottom,
             clay_pct=_round(clay),
+            clay_low_pct=_round(prop_value("clay", depth, "Q0.05")),
+            clay_high_pct=_round(prop_value("clay", depth, "Q0.95")),
             sand_pct=_round(sand),
             silt_pct=_round(silt),
             coarse_fragments_pct=_round(prop_value("cfvo", depth)),
@@ -105,9 +114,21 @@ async def fetch_soil(client: httpx.AsyncClient, lat: float, lon: float) -> SoilP
         profile.layers.append(layer)
 
     _summarise(profile)
+    _assign_confidence(profile)
     if not profile.layers:
         profile.note = "No SoilGrids coverage at this location."
     return profile
+
+
+def _assign_confidence(profile: SoilProfile) -> None:
+    """Rate texture confidence from the clay prediction spread (Q0.95-Q0.05)."""
+    spreads = [l.clay_high_pct - l.clay_low_pct for l in profile.layers
+               if l.clay_high_pct is not None and l.clay_low_pct is not None]
+    if not spreads:
+        return
+    avg = sum(spreads) / len(spreads)
+    profile.texture_confidence = (
+        "High" if avg < 12 else "Moderate" if avg < 25 else "Low")
 
 
 def _round(v: Optional[float], ndigits: int = 1) -> Optional[float]:
