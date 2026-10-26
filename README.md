@@ -137,6 +137,34 @@ side-by-side table (suitability, bearing, settlement, site class, every hazard),
 with the most suitable site highlighted. **Export CSV** downloads the set.
 Storage is local to the browser (no login); nothing is uploaded.
 
+## Reliability
+
+The app depends on several free public data APIs, which can be slow or briefly
+unavailable. It is hardened so a wobble in any one never breaks an assessment:
+
+- **Real-only graceful degradation** — a source that fails is reported as
+  *unavailable* (never faked); every other layer still returns.
+- **Hard time bounds** — each network layer is capped so a slow/overloaded
+  upstream (e.g. the public Overpass API) can never stall or time out the whole
+  request.
+- **In-process result cache** — the stable, location-only lookups (soil,
+  terrain, climate, seismic, vegetation, wind/snow) are cached per rounded
+  coordinate (6 h), so repeat and nearby assessments are near-instant and ride
+  out transient blips. Only *usable* results are cached, so a source that was
+  briefly down is retried next time, not pinned to a bad value.
+- **Overpass failover + configurable endpoint** — OSM Overpass lookups
+  (logistics, water proximity) fail over across public mirrors and remember the
+  one that worked. For maximum reliability, point them at a dedicated or
+  self-hosted instance:
+
+  ```bash
+  # one or more, comma-separated; tried in order
+  export OVERPASS_ENDPOINTS=https://your-overpass/api/interpreter
+  ```
+
+  On Vercel, add `OVERPASS_ENDPOINTS` under **Project → Settings → Environment
+  Variables** and redeploy.
+
 ## Accuracy features
 
 - **Soil uncertainty** — SoilGrids is queried for the **median (Q0.5) and the

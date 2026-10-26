@@ -9,16 +9,29 @@ or an exception (real-only: a total failure degrades to 'unavailable').
 """
 from __future__ import annotations
 
+import os
 import sys
 
 import httpx
 
-# Mirrors with full planet data, tried in order (first success wins).
-ENDPOINTS = [
+# Default mirrors with full planet data, tried in order (first success wins).
+# Override with the OVERPASS_ENDPOINTS env var (comma-separated) to point at a
+# reliable / self-hosted instance — the single biggest reliability lever here.
+_DEFAULT_ENDPOINTS = [
     "https://overpass-api.de/api/interpreter",
     "https://overpass.kumi.systems/api/interpreter",
     "https://overpass.private.coffee/api/interpreter",
 ]
+
+
+def endpoints() -> list[str]:
+    env = os.environ.get("OVERPASS_ENDPOINTS", "").strip()
+    if env:
+        eps = [u.strip() for u in env.split(",") if u.strip()]
+        if eps:
+            return eps
+    return _DEFAULT_ENDPOINTS
+
 
 _last_good: dict[str, str | None] = {"url": None}
 
@@ -30,9 +43,10 @@ async def overpass_elements(client: httpx.AsyncClient, query: str,
     short so a flaky/overloaded instance fails fast; the caller bounds the total
     so Overpass trouble can never stall the whole assessment (real-only)."""
     timeout = httpx.Timeout(connect=4.0, read=read, write=10.0, pool=10.0)
-    order = ENDPOINTS
-    if _last_good["url"] in ENDPOINTS:
-        order = [_last_good["url"]] + [u for u in ENDPOINTS if u != _last_good["url"]]
+    eps = endpoints()
+    order = eps
+    if _last_good["url"] in eps:
+        order = [_last_good["url"]] + [u for u in eps if u != _last_good["url"]]
 
     last_exc: Exception | None = None
     for url in order:

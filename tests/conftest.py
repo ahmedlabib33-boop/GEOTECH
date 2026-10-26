@@ -19,7 +19,10 @@ def offline(monkeypatch):
     import backend.services.hydrology as hydrology
     import backend.services.windsnow as windsnow
     import backend.services.logistics as logistics
+    import backend.services.cache as cache
     import backend.services.sentinelhub as sentinelhub
+
+    cache.clear()  # isolate the in-process data cache between tests
     import backend.services.groundmotion as groundmotion
     import backend.services.geocoding as geocoding
     import backend.main as main

@@ -17,7 +17,8 @@ from .services import (geocoding, terrain as terrain_svc, soil as soil_svc,
                        seismic as seismic_svc, climate as climate_svc,
                        vegetation as veg_svc, hydrology as hydro_svc,
                        sentinelhub as sh_svc, groundmotion as gm_svc,
-                       windsnow as windsnow_svc, logistics as logistics_svc)
+                       windsnow as windsnow_svc, logistics as logistics_svc,
+                       cache)
 from .engineering.parameters import build_parameters
 from .engineering.borehole import build_parameters_from_borehole, has_usable_data
 from .engineering.hazards import all_hazards
@@ -77,18 +78,36 @@ async def _gather_live(lat: float, lon: float):
     partial failure (a source that still fails degrades to sample data)."""
     async with new_client() as client:
         results = await asyncio.gather(
-            with_retry(lambda: terrain_svc.fetch_terrain(client, lat, lon)),
+            # Stable, lat/lon-only sources are cached (usable results only) so a
+            # warm Lambda serves repeat/nearby queries instantly and rides out a
+            # transient upstream blip.
+            cache.cached("terrain", lat, lon,
+                         lambda: with_retry(lambda: terrain_svc.fetch_terrain(client, lat, lon)),
+                         usable=lambda t: isinstance(t, Terrain)
+                         and (t.elevation_m is not None or t.slope_deg is not None)),
             # Soil uses a long dedicated timeout; a single attempt keeps the
             # whole gather within the 60 s function budget.
-            with_retry(lambda: soil_svc.fetch_soil(client, lat, lon), attempts=1),
-            with_retry(lambda: seismic_svc.fetch_seismic(client, lat, lon)),
-            with_retry(lambda: climate_svc.fetch_climate(client, lat, lon)),
-            with_retry(lambda: veg_svc.fetch_vegetation(client, lat, lon)),
+            cache.cached("soil", lat, lon,
+                         lambda: with_retry(lambda: soil_svc.fetch_soil(client, lat, lon), attempts=1),
+                         usable=lambda s: isinstance(s, SoilProfile)
+                         and any(l.usda_texture for l in s.layers)),
+            cache.cached("seismic", lat, lon,
+                         lambda: with_retry(lambda: seismic_svc.fetch_seismic(client, lat, lon)),
+                         usable=lambda q: isinstance(q, SeismicContext)
+                         and (q.source or "") != "unavailable"),
+            cache.cached("climate", lat, lon,
+                         lambda: with_retry(lambda: climate_svc.fetch_climate(client, lat, lon)),
+                         usable=lambda c: isinstance(c, Climate) and c.annual_precip_mm is not None),
+            cache.cached("vegetation", lat, lon,
+                         lambda: with_retry(lambda: veg_svc.fetch_vegetation(client, lat, lon)),
+                         usable=lambda v: isinstance(v, Vegetation) and v.ndvi is not None),
             # Hydrology + logistics share Overpass, so they run one after the other.
             _hydro_then_logistics(client, lat, lon),
             # Wind/snow pulls a long hourly snow series; one attempt keeps the
             # whole gather within the 60 s function budget (like soil).
-            with_retry(lambda: windsnow_svc.fetch_windsnow(client, lat, lon), attempts=1),
+            cache.cached("windsnow", lat, lon,
+                         lambda: with_retry(lambda: windsnow_svc.fetch_windsnow(client, lat, lon), attempts=1),
+                         usable=lambda w: isinstance(w, WindSnowStudy) and (w.source or "") != "unavailable"),
             return_exceptions=True,
         )
     return results
