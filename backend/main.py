@@ -28,8 +28,10 @@ app = FastAPI(
 
 @app.get("/api/health")
 async def health():
+    from .services.sentinelhub import available as sh_available
     return {"status": "ok", "force_demo": FORCE_DEMO,
-            "ai_available": bool(os.environ.get("ANTHROPIC_API_KEY"))}
+            "ai_available": bool(os.environ.get("ANTHROPIC_API_KEY")),
+            "sentinelhub_available": sh_available()}
 
 
 def _demo_flag(demo: bool | None) -> bool:

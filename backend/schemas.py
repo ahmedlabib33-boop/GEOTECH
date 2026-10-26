@@ -160,6 +160,20 @@ class Hydrology(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# Sentinel-2 high-resolution indices (Sentinel Hub, 10 m)
+# --------------------------------------------------------------------------- #
+class SentinelHR(BaseModel):
+    ndvi: Optional[float] = None           # vegetation
+    ndwi: Optional[float] = None           # surface water (>0 ~ open water)
+    ndmi: Optional[float] = None           # moisture
+    observation_date: Optional[str] = None
+    resolution_m: int = 10
+    valid_fraction: Optional[float] = None
+    source: Optional[str] = None
+    note: Optional[str] = None
+
+
+# --------------------------------------------------------------------------- #
 # Vegetation (Sentinel-2 / MODIS NDVI)
 # --------------------------------------------------------------------------- #
 class Vegetation(BaseModel):
@@ -232,6 +246,7 @@ class Assessment(BaseModel):
     seismic: SeismicContext
     climate: Climate = Field(default_factory=Climate)
     vegetation: Vegetation = Field(default_factory=Vegetation)
+    sentinel: Optional[SentinelHR] = None
     hydrology: Hydrology = Field(default_factory=Hydrology)
     borehole: Optional[Borehole] = None
     parameters: GeotechParameters

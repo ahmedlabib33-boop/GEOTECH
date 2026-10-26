@@ -61,6 +61,15 @@ def test_flood_hazard_higher_near_water_lowland():
     assert low.name == "Flooding / inundation"
 
 
+def test_sentinel_disabled_without_creds(monkeypatch):
+    import asyncio
+    from backend.services import sentinelhub as sh
+    monkeypatch.delenv("SENTINELHUB_CLIENT_ID", raising=False)
+    monkeypatch.delenv("SENTINELHUB_CLIENT_SECRET", raising=False)
+    assert sh.available() is False
+    assert asyncio.run(sh.fetch_sentinel(30.0, 31.0)) is None
+
+
 def test_full_bearing_groundwater_reduces():
     from backend.engineering.bearing import allowable_bearing_full
     _, dry = allowable_bearing_full(0, 32, 19, 2.0, 2.0, 1.5, gw_depth_m=None)

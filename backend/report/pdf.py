@@ -239,13 +239,19 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
     vg = a.vegetation
     if vg and vg.ndvi is not None:
         story.append(Paragraph("5. Vegetation &amp; Surface Cover (NDVI)", ss["H2"]))
-        story.append(_kv_table([
+        rows = [
             ("NDVI", f"{vg.ndvi}"),
             ("Observation date", vg.observation_date or "-"),
             ("Cover class", vg.cover_class or "-"),
             ("Ground condition", vg.ground_description or "-"),
             ("Source", vg.source or "-"),
-        ], ss, [48 * mm, 130 * mm]))
+        ]
+        sh = a.sentinel
+        if sh and sh.ndvi is not None:
+            rows.append(("Sentinel-2 10 m indices",
+                         f"NDVI {sh.ndvi}, NDWI {sh.ndwi}, NDMI {sh.ndmi} "
+                         f"(scene {sh.observation_date or '-'})"))
+        story.append(_kv_table(rows, ss, [48 * mm, 130 * mm]))
 
     # Hydrology
     hy = a.hydrology

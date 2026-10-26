@@ -88,6 +88,28 @@ satellite soil model:
 The report then marks these parameters **"Measured — from borehole"** and shows
 the borehole log. API: add a `borehole` object to the `/api/assess` body.
 
+## Optional: Sentinel-2 10 m high-resolution indices (Sentinel Hub)
+
+When credentials are set, the app pulls real **10 m Sentinel-2** indices at the
+site via the Sentinel Hub Statistical API (Copernicus Data Space Ecosystem) —
+far finer than the 250 m MODIS value, which the 10 m NDVI then replaces:
+
+- **NDVI** — vegetation (also feeds the landslide screening)
+- **NDWI** — surface water (>0 suggests open water / inundation)
+- **NDMI** — moisture (relevant to expansive clays / drainage)
+
+Get free credentials: register at <https://dataspace.copernicus.eu/>, then
+**Sentinel Hub → User settings → OAuth clients → Create**. Set:
+
+```bash
+export SENTINELHUB_CLIENT_ID=...
+export SENTINELHUB_CLIENT_SECRET=...
+# optional overrides: SENTINELHUB_TOKEN_URL, SENTINELHUB_STATS_URL
+```
+
+On Vercel, add these under **Project → Settings → Environment Variables** and
+redeploy. Without them the app runs normally and omits the high-res panel.
+
 ## Optional AI engineering commentary
 
 Tick **"AI engineering commentary"** (or `?ai=true`) to add an LLM-written

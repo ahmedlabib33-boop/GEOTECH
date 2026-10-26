@@ -16,7 +16,8 @@ from .schemas import (AssessRequest, Assessment, Climate, Hydrology, Location,
 from .services.http import new_client
 from .services import (geocoding, terrain as terrain_svc, soil as soil_svc,
                        seismic as seismic_svc, climate as climate_svc,
-                       vegetation as veg_svc, hydrology as hydro_svc)
+                       vegetation as veg_svc, hydrology as hydro_svc,
+                       sentinelhub as sh_svc)
 from .services import demo
 from .engineering.parameters import build_parameters
 from .engineering.borehole import build_parameters_from_borehole, has_usable_data
@@ -86,10 +87,12 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False,
         climate = demo.demo_climate(lat, lon)
         vegetation = demo.demo_vegetation(lat, lon)
         hydrology = demo.demo_hydrology(lat, lon, terrain)
+        sentinel = None
         data_mode = "demo"
     else:
         data_mode = "live"
-        t_res, s_res, q_res, c_res, v_res, h_res = await _gather_live(lat, lon)
+        (t_res, s_res, q_res, c_res, v_res, h_res), sentinel = await asyncio.gather(
+            _gather_live(lat, lon), sh_svc.fetch_sentinel(lat, lon))
 
         if isinstance(t_res, Terrain):
             terrain = t_res
@@ -132,6 +135,16 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False,
             warnings.append(f"Hydrology source failed ({type(h_res).__name__}); using sample data.")
             hydrology = demo.demo_hydrology(lat, lon, terrain)
 
+        # Upgrade NDVI to the Sentinel-2 10 m reading when available.
+        if sentinel is not None and sentinel.ndvi is not None:
+            from .services.vegetation import cover_class
+            cls, desc = cover_class(sentinel.ndvi)
+            vegetation.ndvi = sentinel.ndvi
+            vegetation.cover_class = cls
+            vegetation.ground_description = desc
+            vegetation.observation_date = sentinel.observation_date or vegetation.observation_date
+            vegetation.source = "Sentinel-2 L2A 10 m (Sentinel Hub)"
+
     gw_depth = None
     if has_usable_data(req.borehole):
         params = build_parameters_from_borehole(
@@ -159,6 +172,7 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False,
         seismic=seismic,
         climate=climate,
         vegetation=vegetation,
+        sentinel=sentinel,
         hydrology=hydrology,
         borehole=req.borehole if has_usable_data(req.borehole) else None,
         parameters=params,

@@ -382,6 +382,18 @@ function render(a) {
     ["Frost penetration", cl.frost_depth_m != null ? cl.frost_depth_m + " m" : "—"],
   ]);
 
+  const sh = a.sentinel;
+  if (sh && sh.ndvi != null) {
+    html += head("🛰️", "Sentinel-2 high-res (10 m)", "measured",
+      "Sentinel Hub / Copernicus", "https://dataspace.copernicus.eu/");
+    html += kv([
+      ["NDVI (vegetation)", sh.ndvi],
+      ["NDWI (surface water)", sh.ndwi != null ? sh.ndwi + (sh.ndwi > 0 ? " — open water likely" : "") : "—"],
+      ["NDMI (moisture)", sh.ndmi != null ? sh.ndmi : "—"],
+      ["Scene date", sh.observation_date || "—"],
+    ]);
+  }
+
   if (vg.ndvi != null) {
     const np = Math.max(0, Math.min(1, vg.ndvi)) * 100;
     const ncol = vg.ndvi < 0.1 ? "#b08968" : vg.ndvi < 0.3 ? "#c9b458"
