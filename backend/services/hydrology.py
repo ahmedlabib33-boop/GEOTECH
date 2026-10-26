@@ -16,8 +16,8 @@ from typing import Optional
 import httpx
 
 from ..schemas import Hydrology, Terrain
+from .overpass import overpass_elements
 
-OVERPASS = "https://overpass-api.de/api/interpreter"
 FLOOD_API = "https://flood-api.open-meteo.com/v1/flood"
 SEARCH_RADIUS_M = 5000
 
@@ -53,9 +53,7 @@ async def _nearest_water(client: httpx.AsyncClient, lat: float, lon: float):
     );
     out tags center 40;
     """
-    r = await client.post(OVERPASS, data={"data": q})
-    r.raise_for_status()
-    elements = r.json().get("elements", [])
+    elements = await overpass_elements(client, q, read=12.0)
     best = None
     for el in elements:
         c = el.get("center") or {"lat": el.get("lat"), "lon": el.get("lon")}

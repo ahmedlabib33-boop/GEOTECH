@@ -9,20 +9,13 @@ nothing mapped within its search radius is reported as such, never invented.
 """
 from __future__ import annotations
 
-import asyncio
 import math
 from typing import Optional
 
 import httpx
 
 from ..schemas import LogisticsPOI, SiteLogistics
-
-# Same endpoint hydrology uses (proven reachable); Overpass queues the two
-# queries per IP. A moderate timeout keeps a slow response from dominating the
-# 60 s function budget — on failure the layer degrades to a note (real-only).
-OVERPASS = "https://overpass-api.de/api/interpreter"
-# Lean query answers fast; a short read keeps two attempts inside the 60 s budget.
-_TIMEOUT = httpx.Timeout(connect=10.0, read=20.0, write=10.0, pool=10.0)
+from .overpass import overpass_elements
 
 # (kind, radius_m) per category. Kept modest so the Overpass scan is light and
 # returns quickly; sparse, high-value features (ports/airports) still get range.
@@ -100,18 +93,9 @@ def _rating(port, road, urban) -> tuple[str, str]:
 
 async def fetch_logistics(client: httpx.AsyncClient, lat: float, lon: float) -> SiteLogistics:
     out = SiteLogistics(source="OpenStreetMap Overpass")
-    q = _query(lat, lon)
-    elements = None
-    for attempt in range(2):   # Overpass can briefly reject a concurrent query
-        try:
-            r = await client.post(OVERPASS, data={"data": q}, timeout=_TIMEOUT)
-            r.raise_for_status()
-            elements = r.json().get("elements", [])
-            break
-        except Exception:
-            if attempt == 0:
-                await asyncio.sleep(1.5)
-    if elements is None:
+    try:
+        elements = await overpass_elements(client, _query(lat, lon), read=12.0)
+    except Exception:
         out.note = "Logistics lookup (OSM Overpass) unavailable at this time."
         return out
 
