@@ -250,6 +250,48 @@ def build_pdf(a: Assessment) -> bytes:
         story.append(Paragraph(f"<b>{r.category}.</b> {r.text}", ss["Body"]))
         story.append(Spacer(1, 3))
 
+    # Data sources & provenance
+    story.append(Paragraph("Data Sources &amp; Provenance", ss["H2"]))
+    live = a.data_mode == "live"
+    prov = [
+        ("Terrain / elevation", "Measured", "NASA SRTM 30 m (OpenTopoData)"),
+        ("Soil properties", "Modelled", "ISRIC SoilGrids 250 m (median + 5-95%)"),
+        ("Seismicity", "Measured", "USGS earthquake catalogue"),
+        ("Climate / frost", "Modelled", "Open-Meteo ERA5 reanalysis (5-yr)"),
+        ("Vegetation / NDVI", "Measured", "NASA MODIS MOD13Q1 250 m"),
+        ("Hydrology / flood", "Measured", "OpenStreetMap + Open-Meteo GloFAS"),
+        ("Parameters / hazards", "Estimated", "Derived (Terzaghi/Vesic + references)"),
+    ]
+    prows = [[Paragraph("<b>Layer</b>", ss["CellB"]), Paragraph("<b>Type</b>", ss["CellB"]),
+              Paragraph("<b>Source</b>", ss["CellB"])]]
+    _pc = {"Measured": colors.HexColor("#2e7d32"), "Modelled": colors.HexColor("#b8860b"),
+           "Estimated": colors.HexColor("#7b4b8a")}
+    for layer, kind, src in prov:
+        shown_kind = "Sample (demo)" if not live else kind
+        col = colors.HexColor("#c62828") if not live else _pc[kind]
+        prows.append([
+            Paragraph(layer, ss["Cell"]),
+            Paragraph(f'<font color="#{col.hexval()[2:]}"><b>{shown_kind}</b></font>', ss["Cell"]),
+            Paragraph(src, ss["Cell"]),
+        ])
+    pt = Table(prows, colWidths=[46 * mm, 32 * mm, 100 * mm], repeatRows=1)
+    pt.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#c9d4de")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    story.append(pt)
+    story.append(Spacer(1, 3))
+    story.append(Paragraph(
+        "<b>Measured</b> = direct satellite/instrument reading. <b>Modelled</b> = global "
+        "model prediction (real science, but an estimate — not a site measurement). "
+        "<b>Estimated</b> = engineering calculation from the above. "
+        + ("All values are LIVE readings fetched at the site coordinates."
+           if live else "NOTE: this run used DEMO sample data, not live readings."),
+        ss["Disc"]))
+
     # AI commentary (optional)
     if a.commentary:
         story.append(Paragraph("10. Engineering Commentary (AI-assisted)", ss["H2"]))

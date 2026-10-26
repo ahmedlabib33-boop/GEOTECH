@@ -14,9 +14,26 @@ import httpx
 from ..schemas import Terrain
 
 OPENTOPODATA = "https://api.opentopodata.org/v1"
-# SRTM 30m is a good global default; falls back to ASTER/other inside the API.
+# Global default; higher-resolution regional DEMs are preferred where they cover
+# the site (USGS NED 10 m in the USA, EU-DEM 25 m in Europe).
 DATASET = "srtm30m"
 GRID_SPACING_M = 90.0  # neighbourhood half-step for slope estimation
+
+_DATASET_LABEL = {
+    "ned10m": "USGS NED 10 m", "eudem25m": "EU-DEM 25 m",
+    "srtm30m": "SRTM 30 m", "aster30m": "ASTER 30 m",
+}
+
+
+def _best_datasets(lat: float, lon: float) -> list[str]:
+    """Highest-resolution DEM first, then global SRTM fallback."""
+    order: list[str] = []
+    if 24 <= lat <= 50 and -125 <= lon <= -66:          # contiguous USA
+        order.append("ned10m")
+    elif 34 <= lat <= 72 and -12 <= lon <= 45:           # Europe
+        order.append("eudem25m")
+    order.append("srtm30m")
+    return order
 
 
 def _classify_terrain(slope_deg: Optional[float]) -> Optional[str]:
@@ -61,24 +78,39 @@ def _slope_aspect(z, spacing_m: float):
     return slope_deg, aspect
 
 
+async def _query_dem(client: httpx.AsyncClient, dataset: str, locs: str):
+    r = await client.get(f"{OPENTOPODATA}/{dataset}",
+                         params={"locations": locs, "interpolation": "bilinear"})
+    r.raise_for_status()
+    results = r.json().get("results", [])
+    return [res.get("elevation") for res in results]
+
+
 async def fetch_terrain(client: httpx.AsyncClient, lat: float, lon: float) -> Terrain:
     pts = _grid_points(lat, lon, GRID_SPACING_M)
     locs = "|".join(f"{a:.6f},{b:.6f}" for a, b in pts)
-    r = await client.get(
-        f"{OPENTOPODATA}/{DATASET}",
-        params={"locations": locs, "interpolation": "bilinear"},
-    )
-    r.raise_for_status()
-    results = r.json().get("results", [])
-    elevs = [res.get("elevation") for res in results]
+
+    elevs: list = []
+    used = "srtm30m"
+    for ds in _best_datasets(lat, lon):
+        try:
+            cand = await _query_dem(client, ds, locs)
+        except Exception:
+            continue
+        if len(cand) == 9 and all(v is not None for v in cand):
+            elevs, used = cand, ds
+            break
+        if not elevs and cand:          # keep partial best-effort as last resort
+            elevs, used = cand, ds
+
+    label = f"OpenTopoData ({_DATASET_LABEL.get(used, used)})"
     if len(elevs) != 9 or any(v is None for v in elevs):
-        # Partial coverage (e.g. ocean / void). Report what we can.
         centre = elevs[4] if len(elevs) > 4 else None
         valid = [v for v in elevs if v is not None]
         return Terrain(
             elevation_m=centre,
             relief_m=(max(valid) - min(valid)) if len(valid) > 1 else None,
-            source="OpenTopoData (SRTM 30m)",
+            source=label,
             note="Incomplete DEM coverage; slope not computed.",
         )
 
@@ -89,5 +121,5 @@ async def fetch_terrain(client: httpx.AsyncClient, lat: float, lon: float) -> Te
         aspect_deg=round(aspect, 1),
         relief_m=round(max(elevs) - min(elevs), 2),
         terrain_class=_classify_terrain(slope_deg),
-        source="OpenTopoData (SRTM 30m)",
+        source=label,
     )

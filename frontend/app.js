@@ -227,8 +227,23 @@ function bearingChart(curve) {
   </svg>`;
 }
 
+// Section heading with a data-provenance badge + source link.
+// kind: measured | modelled | estimated
+let DEMO_MODE = false;
+function head(emoji, title, kind, name, url) {
+  if (DEMO_MODE) { kind = "sample"; name = "demo sample"; url = null; }
+  const label = { measured: "Measured", modelled: "Modelled", estimated: "Estimated",
+    sample: "Sample" }[kind] || kind;
+  const src = url
+    ? `<a class="src-link" href="${url}" target="_blank" rel="noopener">${esc(name)} ↗</a>`
+    : `<span class="src-link">${esc(name)}</span>`;
+  return `<div class="sec-head"><h3>${emoji} ${title}</h3>
+    <span class="src-badge ${kind}" title="${label} data">${label}</span>${src}</div>`;
+}
+
 function render(a) {
   const badge = $("modeBadge");
+  DEMO_MODE = a.data_mode === "demo";
   badge.textContent = a.data_mode === "live" ? "LIVE DATA" : "DEMO DATA";
   badge.className = "mode-badge " + a.data_mode;
 
@@ -263,9 +278,10 @@ function render(a) {
       interprets the data above; not a professional sign-off.</div></div>`;
   }
 
-  html += `<h3>⚠️ Geohazard screening</h3>${hazardMeters(a.hazards)}`;
+  html += head("⚠️", "Geohazard screening", "estimated", "derived from data below", null)
+    + hazardMeters(a.hazards);
 
-  html += `<h3>🪨 Soil profile (to 2 m)</h3>`;
+  html += head("🪨", "Soil profile (to 2 m)", "modelled", "ISRIC SoilGrids", "https://soilgrids.org/");
   const l0 = a.soil.layers[0];
   const clayStr = l0
     ? (l0.clay_low_pct != null
@@ -278,7 +294,8 @@ function render(a) {
     ["Source", a.soil.source && a.soil.source.includes("DEMO") ? "sample" : "SoilGrids"],
   ]) + `</div></div>`;
 
-  html += `<h3>🏗️ Foundation &amp; parameters</h3>`;
+  html += head("🏗️", "Foundation &amp; parameters", "estimated",
+    "derived (Terzaghi/Vesic + ref. values)", null);
   html += kv([
     ["Recommended", p.recommended_foundation],
     ["Net allowable bearing", p.allowable_bearing_kpa + " kPa (FS 3)"],
@@ -293,14 +310,14 @@ function render(a) {
   html += `<div class="chart-wrap"><div class="chart-title">Allowable bearing vs footing width</div>`
     + bearingChart(p.bearing_curve) + `</div>`;
 
-  html += `<h3>🏔️ Terrain</h3>`;
+  html += head("🏔️", "Terrain", "measured", "NASA SRTM / OpenTopoData", "https://www.opentopodata.org/");
   html += kv([
     ["Elevation", t.elevation_m != null ? t.elevation_m + " m" : "—"],
     ["Slope / aspect", (t.slope_deg != null ? t.slope_deg + "°" : "—") + " / " + (t.aspect_deg != null ? t.aspect_deg + "°" : "—")],
     ["Terrain class", t.terrain_class],
   ]);
 
-  html += `<h3>🌧️ Climate &amp; frost</h3>`;
+  html += head("🌧️", "Climate &amp; frost", "modelled", "Open-Meteo ERA5", "https://open-meteo.com/");
   html += kv([
     ["Annual rainfall", cl.annual_precip_mm != null ? cl.annual_precip_mm + " mm (" + esc(cl.wetness_class) + ")" : "—"],
     ["Mean / min temp", (cl.mean_temp_c ?? "—") + " / " + (cl.min_temp_c ?? "—") + " °C"],
@@ -311,7 +328,7 @@ function render(a) {
     const np = Math.max(0, Math.min(1, vg.ndvi)) * 100;
     const ncol = vg.ndvi < 0.1 ? "#b08968" : vg.ndvi < 0.3 ? "#c9b458"
       : vg.ndvi < 0.6 ? "#7cb342" : "#2e7d32";
-    html += `<h3>🌱 Vegetation / NDVI</h3>`;
+    html += head("🌱", "Vegetation / NDVI", "measured", "NASA MODIS", "https://modis.ornl.gov/");
     html += `<div class="meter-row"><div class="meter-head">
       <span>NDVI ${vg.ndvi.toFixed(2)} · ${esc(vg.cover_class)}</span>
       <span class="sub" style="margin:0">${esc(vg.observation_date)}</span></div>
@@ -320,7 +337,8 @@ function render(a) {
   }
 
   if (hy.nearest_water_m != null || hy.river_discharge_m3s != null) {
-    html += `<h3>💧 Hydrology &amp; water proximity</h3>`;
+    html += head("💧", "Hydrology &amp; water proximity", "measured",
+      "OpenStreetMap + GloFAS", "https://overpass-turbo.eu/");
     html += kv([
       ["Nearest water", hy.nearest_water_m != null
         ? `${hy.nearest_water_m} m (${esc(hy.nearest_water_type)})` : "none within 5 km"],
@@ -329,7 +347,7 @@ function render(a) {
     ]);
   }
 
-  html += `<h3>🌍 Seismic context</h3>`;
+  html += head("🌍", "Seismic context", "measured", "USGS catalogue", "https://earthquake.usgs.gov/");
   html += kv([
     ["M≥4 events (300 km)", s.event_count],
     ["Max magnitude", s.max_magnitude ? "M" + s.max_magnitude : "—"],
