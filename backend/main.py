@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 from .schemas import AssessRequest, Assessment
 from .assess import run_assessment
 from .report.pdf import build_pdf
+from .services.sitemap import site_image
 
 # Global offline switch: set GEOTECH_DEMO=1 to force sample data everywhere.
 FORCE_DEMO = os.environ.get("GEOTECH_DEMO", "").lower() in ("1", "true", "yes")
@@ -51,7 +52,14 @@ async def report_pdf(req: AssessRequest, demo: bool = False, ai: bool = False):
         assessment = await run_assessment(req, demo_mode=_demo_flag(demo), ai_commentary=ai)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    pdf = build_pdf(assessment)
+    # Fetch a satellite locator image (best-effort; skip in demo/offline).
+    img = None
+    if assessment.data_mode == "live":
+        try:
+            img = await site_image(assessment.location.lat, assessment.location.lon)
+        except Exception:
+            img = None
+    pdf = build_pdf(assessment, img)
     safe = "".join(c if c.isalnum() else "_" for c in assessment.project_name)[:40] or "site"
     return Response(
         content=pdf,

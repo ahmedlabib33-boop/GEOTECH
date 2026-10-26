@@ -8,8 +8,9 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.platypus import (Paragraph, SimpleDocTemplate, Spacer, Table,
-                                TableStyle, HRFlowable)
+from reportlab.platypus import (Image as RLImage, Paragraph, SimpleDocTemplate,
+                                Spacer, Table, TableStyle, HRFlowable)
+import io as _io
 
 from ..schemas import Assessment
 
@@ -53,7 +54,7 @@ def _kv_table(rows, ss, col_widths):
     return t
 
 
-def build_pdf(a: Assessment) -> bytes:
+def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
     ss = _styles()
     buf = io.BytesIO()
     doc = SimpleDocTemplate(buf, pagesize=A4, topMargin=18 * mm, bottomMargin=16 * mm,
@@ -78,6 +79,32 @@ def build_pdf(a: Assessment) -> bytes:
     if a.warnings:
         story.append(Spacer(1, 6))
         story.append(Paragraph("<b>Data notes:</b> " + " ".join(a.warnings), ss["Disc"]))
+
+    # Satellite site-locator image
+    if site_image:
+        try:
+            img = RLImage(_io.BytesIO(site_image), width=120 * mm, height=120 * mm)
+            img.hAlign = "CENTER"
+            story.append(Spacer(1, 8))
+            story.append(img)
+            story.append(Paragraph(
+                f"Satellite view centred on {a.location.lat:.5f}, {a.location.lon:.5f} "
+                "(Esri World Imagery). Crosshair marks the assessed point.", ss["Disc"]))
+        except Exception:
+            pass
+
+    # Executive summary
+    if a.suitability:
+        top_hz = sorted(a.hazards, key=lambda h: -h.score)[:2]
+        hz_txt = ", ".join(f"{h.name.split(' /')[0].split(' (')[0]} ({h.level})" for h in top_hz)
+        story.append(Paragraph("Executive Summary", ss["H2"]))
+        story.append(Paragraph(
+            f"<b>Site suitability: {a.suitability.rating} ({a.suitability.score:.0f}/100).</b> "
+            f"{a.suitability.summary} Leading constraints: {hz_txt}. "
+            f"Preliminary foundation: {a.parameters.recommended_foundation or 'see below'}, "
+            f"net allowable bearing ~{a.parameters.allowable_bearing_kpa:.0f} kPa "
+            f"(basis: {'measured borehole' if a.parameters.data_basis == 'borehole' else 'satellite model'}). "
+            "Confirm by intrusive ground investigation before design.", ss["Body"]))
 
     # Suitability banner
     if a.suitability:
