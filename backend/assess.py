@@ -53,7 +53,9 @@ async def _gather_live(lat: float, lon: float):
     async with new_client() as client:
         results = await asyncio.gather(
             with_retry(lambda: terrain_svc.fetch_terrain(client, lat, lon)),
-            with_retry(lambda: soil_svc.fetch_soil(client, lat, lon)),
+            # Soil uses a long dedicated timeout; a single attempt keeps the
+            # whole gather within the 60 s function budget.
+            with_retry(lambda: soil_svc.fetch_soil(client, lat, lon), attempts=1),
             with_retry(lambda: seismic_svc.fetch_seismic(client, lat, lon)),
             with_retry(lambda: climate_svc.fetch_climate(client, lat, lon)),
             with_retry(lambda: veg_svc.fetch_vegetation(client, lat, lon)),

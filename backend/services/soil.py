@@ -64,7 +64,10 @@ async def fetch_soil(client: httpx.AsyncClient, lat: float, lon: float) -> SoilP
     params += [("property", p) for p in PROPERTIES]
     params += [("depth", d) for d in DEPTHS]
 
-    r = await client.get(SOILGRIDS, params=params)
+    # SoilGrids is the core layer but is often slow (10-30 s); give it a long
+    # dedicated timeout so it is not dropped by the default budget.
+    r = await client.get(SOILGRIDS, params=params,
+                         timeout=httpx.Timeout(connect=10.0, read=50.0, write=10.0, pool=10.0))
     r.raise_for_status()
     layers_meta = (r.json().get("properties") or {}).get("layers", [])
 
