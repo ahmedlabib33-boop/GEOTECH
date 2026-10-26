@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>GeoTech Satellite — Preliminary Geotechnical Desk Study</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+        integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+  <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <span class="logo">🛰️</span>
+      <div>
+        <h1>GeoTech&nbsp;Satellite</h1>
+        <p>Preliminary geotechnical desk study for any point on Earth</p>
+      </div>
+    </div>
+    <span id="modeBadge" class="mode-badge">—</span>
+  </header>
+
+  <main class="layout">
+    <!-- Map + controls -->
+    <section class="map-pane">
+      <div id="map"></div>
+      <div class="map-search">
+        <input id="placeInput" type="text" placeholder="Search a place (city, address, landmark)…" />
+        <button id="searchBtn" title="Search">Go</button>
+      </div>
+      <div class="coord-readout" id="coordReadout">Click the map or search to drop a site pin</div>
+    </section>
+
+    <!-- Sidebar -->
+    <aside class="sidebar">
+      <div class="card">
+        <h2>Site &amp; assessment</h2>
+        <label>Project name
+          <input id="projectName" type="text" placeholder="e.g. Plant A — Block 3" />
+        </label>
+        <div class="grid2">
+          <label>Latitude <input id="lat" type="number" step="any" /></label>
+          <label>Longitude <input id="lon" type="number" step="any" /></label>
+        </div>
+        <div class="grid2">
+          <label>Footing width B (m) <input id="fw" type="number" step="0.1" value="2.0" /></label>
+          <label>Founding depth Df (m) <input id="fd" type="number" step="0.1" value="1.5" /></label>
+        </div>
+        <label class="checkline">
+          <input id="demo" type="checkbox" /> Demo mode (sample data, no network)
+        </label>
+        <button id="runBtn" class="primary">Generate assessment</button>
+        <div id="status" class="status"></div>
+      </div>
+
+      <div id="results" class="results" hidden></div>
+
+      <div id="actions" class="actions" hidden>
+        <button id="pdfBtn" class="secondary">⬇ Download PDF report</button>
+      </div>
+
+      <p class="disclaimer">
+        Automated <b>preliminary</b> desk study from open remote-sensing data
+        (SoilGrids, SRTM/OpenTopoData, USGS). Surface data only — <b>no
+        subsurface investigation</b>. Not a substitute for a site-specific
+        geotechnical investigation by a qualified engineer.
+      </p>
+    </aside>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+          integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
