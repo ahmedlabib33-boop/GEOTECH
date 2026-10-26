@@ -28,6 +28,7 @@ a site-specific investigation by a qualified geotechnical engineer.
 | Seismicity | [USGS Earthquake Catalog](https://earthquake.usgs.gov/) | M≥4 events within 300 km |
 | Climate (rainfall, temperature, frost) | [Open-Meteo ERA5](https://open-meteo.com/) reanalysis | annual precip + freezing-degree-days |
 | Wind & snow extremes | [Open-Meteo ERA5](https://open-meteo.com/) archive | 15-yr annual-max gust + on-ground snow depth → Gumbel 50-yr design loads |
+| Logistics & access | [OpenStreetMap Overpass](https://overpass-api.de/) | nearest seaport / airport / major road / railway / town / quarry / grid |
 | Vegetation / NDVI | [NASA ORNL MODIS](https://modis.ornl.gov/) MOD13Q1 (250 m) | topsoil/clearing, erosion, root reinforcement |
 | Sentinel-2 imagery | [EOX Sentinel-2 cloudless](https://s2maps.eu/) basemap | selectable map layer (modified Copernicus data) |
 | Water proximity | [OpenStreetMap Overpass](https://overpass-api.de/) | nearest river/lake/coastline + distance |
@@ -89,6 +90,29 @@ hazards without real inputs are marked *Insufficient data*.
   fabricated hazard. Reports the plateau Sₐ, Sₐ(0.2 s) and Sₐ(1.0 s).
   Screening only — final design uses the code's mapped hazard, importance and
   behaviour/response-modification factors.
+
+## Overseas-bidding / tender desk study
+
+For an international contractor pricing work abroad, the app adds a bidding
+layer on top of the engineering, all from the same real data:
+
+- **Bid Risk Register** — a weighted roll-up of every finding (ground &
+  foundations, seismic, flooding, slope, problem soils, logistics, construction
+  climate, regulatory) into a **0–100 bid-risk index** and rating, each line
+  carrying a **contingency driver**. Lines whose inputs were unavailable are
+  marked *Insufficient data* (a field-data action before tender), never scored
+  from guesses.
+- **Site logistics & access** (OpenStreetMap) — distance to the nearest
+  **seaport, airport, major road, railway, town/city, quarry and power grid**,
+  plotted on the map, plus a **mobilization-complexity rating** — the import /
+  haul / supply-chain cost drivers for an overseas job.
+- **Country & regulatory context** — country and ISO code (from the geocoder),
+  computed **UTM zone + EPSG** (setting-out / GIS) and hemisphere, and a
+  curated, clearly-labelled **reference** of the likely design-code family
+  (Eurocode / ASCE / local), currency and unit system — confirm locally.
+- **Construction workability** (from the ERA5 daily record) — estimated
+  **workable days per year** and a rating, heavy-rain / extreme-heat / frost
+  day counts, and the wettest/driest months for programme planning.
 
 ## Live satellite map tools
 

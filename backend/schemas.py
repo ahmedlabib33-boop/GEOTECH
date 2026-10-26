@@ -79,6 +79,7 @@ class Location(BaseModel):
     lon: float
     display_name: Optional[str] = None
     country: Optional[str] = None
+    country_code: Optional[str] = None  # ISO 3166-1 alpha-2 (from Nominatim)
 
 
 # --------------------------------------------------------------------------- #
@@ -162,6 +163,12 @@ class Climate(BaseModel):
     cdd18: Optional[float] = Field(None, description="Cooling degree-days, base 18C (annual)")
     heating_design_temp_c: Optional[float] = Field(None, description="~99% winter design temp")
     cooling_design_temp_c: Optional[float] = Field(None, description="~1% summer design temp")
+    # Construction-workability counts (mean days/year, from the ERA5 daily series)
+    heavy_rain_days: Optional[float] = Field(None, description="days/yr precip > 10 mm")
+    extreme_heat_days: Optional[float] = Field(None, description="days/yr Tmax > 35 C")
+    frost_days: Optional[float] = Field(None, description="days/yr Tmin < 0 C")
+    wettest_month: Optional[str] = None
+    driest_month: Optional[str] = None
     source: Optional[str] = None
     note: Optional[str] = None
 
@@ -353,6 +360,74 @@ class SeismicDesignStudy(BaseModel):
     source: Optional[str] = None
 
 
+# --------------------------------------------------------------------------- #
+# Overseas-bidding layer: country/regulatory, logistics, workability, bid risk
+# --------------------------------------------------------------------------- #
+class CountryContext(BaseModel):
+    country: Optional[str] = None
+    country_code: Optional[str] = None
+    region: Optional[str] = None
+    hemisphere: Optional[str] = None          # Northern / Southern (from latitude)
+    utm_zone: Optional[str] = None            # e.g. "35N" (setting-out / GIS)
+    epsg_code: Optional[str] = None           # WGS84 / UTM EPSG, e.g. "EPSG:32635"
+    currency: Optional[str] = None            # reference (ISO + name)
+    measurement_system: Optional[str] = None  # metric / US customary
+    structural_code: Optional[str] = None     # likely design-code family (reference)
+    seismic_code: Optional[str] = None
+    wind_snow_code: Optional[str] = None
+    notes: list[str] = Field(default_factory=list)
+    source: Optional[str] = None
+
+
+class LogisticsPOI(BaseModel):
+    kind: str                                 # seaport / airport / major_road / ...
+    name: Optional[str] = None
+    distance_km: Optional[float] = None
+    lat: Optional[float] = None
+    lon: Optional[float] = None
+    detail: Optional[str] = None
+
+
+class SiteLogistics(BaseModel):
+    pois: list[LogisticsPOI] = Field(default_factory=list)
+    nearest_port_km: Optional[float] = None
+    nearest_airport_km: Optional[float] = None
+    nearest_major_road_km: Optional[float] = None
+    nearest_urban_km: Optional[float] = None
+    mobilization_rating: Optional[str] = None  # Easy / Moderate / Difficult / Remote
+    access_note: Optional[str] = None
+    source: Optional[str] = None
+    note: Optional[str] = None
+
+
+class ConstructionClimate(BaseModel):
+    workable_days_per_year: Optional[int] = None
+    workability_rating: Optional[str] = None   # Excellent..Severely constrained
+    heavy_rain_days: Optional[int] = None       # earthworks shutdown risk (>10 mm)
+    extreme_heat_days: Optional[int] = None     # heat-stress / concreting limits (>35 C)
+    frost_days: Optional[int] = None            # winter-working limits (<0 C)
+    wettest_month: Optional[str] = None
+    driest_month: Optional[str] = None
+    notes: list[str] = Field(default_factory=list)
+    source: Optional[str] = None
+
+
+class BidRiskItem(BaseModel):
+    category: str
+    level: str                                 # Low / Moderate / High / Very High / Insufficient data
+    score: float = 0.0                         # 0..1
+    rationale: str
+    contingency_driver: Optional[str] = None
+
+
+class BidRiskRegister(BaseModel):
+    overall_rating: Optional[str] = None        # Low / Moderate / High / Very High
+    index: Optional[float] = None               # 0..100 (higher = more bid risk)
+    items: list[BidRiskItem] = Field(default_factory=list)
+    summary: Optional[str] = None
+    source: Optional[str] = None
+
+
 class HazardRating(BaseModel):
     name: str
     level: str  # Low / Moderate / High / Very High
@@ -386,6 +461,10 @@ class Assessment(BaseModel):
     underground: Optional[UndergroundStudy] = None
     wind_snow: Optional[WindSnowStudy] = None
     seismic_design: Optional[SeismicDesignStudy] = None
+    country_context: Optional[CountryContext] = None
+    logistics: Optional[SiteLogistics] = None
+    construction_climate: Optional[ConstructionClimate] = None
+    bid_risk: Optional[BidRiskRegister] = None
     hazards: list[HazardRating] = Field(default_factory=list)
     recommendations: list[Recommendation] = Field(default_factory=list)
     commentary: Optional[str] = None  # optional LLM engineering commentary

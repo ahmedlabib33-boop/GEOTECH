@@ -198,6 +198,53 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
 
     story.append(PageBreak())
 
+    # Bid Risk Register (headline for the tender desk study)
+    br = a.bid_risk
+    if br and br.items:
+        story.append(Paragraph("Bid Risk Register", ss["H2"]))
+        if br.index is not None:
+            story.append(Paragraph(
+                f"<b>Overall bid risk: {br.overall_rating} ({br.index:.0f}/100).</b> "
+                + (br.summary or ""), ss["Body"]))
+            story.append(Spacer(1, 3))
+        rrows = [[Paragraph("<b>Area</b>", ss["Cell"]), Paragraph("<b>Level</b>", ss["Cell"]),
+                  Paragraph("<b>Contingency driver</b>", ss["Cell"])]]
+        for it in br.items:
+            col = _LEVEL_COLORS.get(it.level, colors.grey)
+            hexc = "#" + col.hexval()[2:]
+            rrows.append([
+                Paragraph(it.category, ss["Cell"]),
+                Paragraph(f'<font color="{hexc}"><b>{it.level}</b></font>', ss["Cell"]),
+                Paragraph(it.contingency_driver or it.rationale or "-", ss["Cell"])])
+        rt = Table(rrows, colWidths=[42 * mm, 26 * mm, 110 * mm])
+        rt.setStyle(TableStyle([
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#d4dde6")),
+            ("BACKGROUND", (0, 0), (-1, 0), LIGHT),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+            ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]))
+        story.append(rt)
+        story.append(Paragraph("Synthesis of the real desk-study findings; a line marked "
+                               "'Insufficient data' needs field data before tender.", ss["Disc"]))
+        story.append(Spacer(1, 6))
+
+    # Country & regulatory context
+    cc = a.country_context
+    if cc:
+        story.append(Paragraph("Country &amp; Regulatory Context (reference)", ss["H2"]))
+        story.append(_kv_table([
+            ("Country", f"{cc.country or '-'}" + (f" ({cc.country_code})" if cc.country_code else "")),
+            ("Currency (reference)", cc.currency or "-"),
+            ("Units", cc.measurement_system or "-"),
+            ("Structural code (likely)", cc.structural_code or "-"),
+            ("Seismic code", cc.seismic_code or "-"),
+            ("Wind / snow code", cc.wind_snow_code or "-"),
+            ("UTM zone / EPSG", f"{cc.utm_zone or '-'}" + (f" / {cc.epsg_code}" if cc.epsg_code else "")),
+            ("Hemisphere", cc.hemisphere or "-"),
+        ], ss, [50 * mm, 128 * mm]))
+        for n in (cc.notes or []):
+            story.append(Paragraph(n, ss["Disc"]))
+        story.append(Spacer(1, 4))
+
     # Terrain
     story.append(Paragraph("1. Terrain &amp; Topography", ss["H2"]))
     t = a.terrain
@@ -496,6 +543,39 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
         for n in (sd.notes or []):
             story.append(Paragraph(n, ss["Disc"]))
 
+    # Site logistics & access
+    lo = a.logistics
+    if lo and (lo.pois or lo.note):
+        story.append(Paragraph("Site Logistics &amp; Access (bidding)", ss["H2"]))
+        if lo.mobilization_rating:
+            story.append(Paragraph(f"<b>Mobilization: {lo.mobilization_rating}.</b> "
+                                   + (lo.access_note or ""), ss["Body"]))
+        _LBL = {"seaport": "Nearest seaport", "airport": "Nearest airport",
+                "major_road": "Nearest major road", "railway": "Nearest railway",
+                "urban_centre": "Nearest town/city", "quarry": "Nearest quarry",
+                "power": "Nearest grid / substation"}
+        lrows = [(_LBL.get(p.kind, p.kind),
+                  f"{_s(p.distance_km)} km" + (f" — {p.name}" if p.name else ""))
+                 for p in lo.pois]
+        if lrows:
+            story.append(_kv_table(lrows, ss, [50 * mm, 128 * mm]))
+        if lo.note:
+            story.append(Paragraph(lo.note, ss["Disc"]))
+
+    # Construction workability
+    wk = a.construction_climate
+    if wk:
+        story.append(Paragraph("Construction Workability (bidding)", ss["H2"]))
+        story.append(_kv_table([
+            ("Workable days / yr", f"{_s(wk.workable_days_per_year)} ({wk.workability_rating or '-'})"),
+            ("Heavy-rain days (>10 mm)", _s(wk.heavy_rain_days)),
+            ("Extreme-heat days (>35 C)", _s(wk.extreme_heat_days)),
+            ("Frost days (<0 C)", _s(wk.frost_days)),
+            ("Wettest / driest month", f"{wk.wettest_month or '-'} / {wk.driest_month or '-'}"),
+        ], ss, [50 * mm, 128 * mm]))
+        for n in (wk.notes or []):
+            story.append(Paragraph(n, ss["Disc"]))
+
     # Data sources & provenance
     story.append(Paragraph("Data Sources &amp; Provenance", ss["H2"]))
     prov = [
@@ -504,6 +584,7 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
         ("Seismicity", "Measured", "USGS earthquake catalogue"),
         ("Climate / frost", "Modelled", "Open-Meteo ERA5 reanalysis (5-yr)"),
         ("Wind / snow loads", "Modelled", "Open-Meteo ERA5 extremes (Gumbel 50-yr)"),
+        ("Logistics / access", "Measured", "OpenStreetMap (Overpass)"),
         ("Vegetation / NDVI", "Measured", "NASA MODIS MOD13Q1 250 m"),
         ("Hydrology / flood", "Measured", "OpenStreetMap + Open-Meteo GloFAS"),
         ("Parameters / hazards", "Estimated", "Derived (Terzaghi/Vesic + references)"),

@@ -60,10 +60,21 @@ async def fetch_climate(client: httpx.AsyncClient, lat: float, lon: float) -> Cl
     )
     r.raise_for_status()
     daily = r.json().get("daily", {})
+    times = daily.get("time", []) or []
     precip = [v for v in daily.get("precipitation_sum", []) if v is not None]
     tmin = [v for v in daily.get("temperature_2m_min", []) if v is not None]
     tmean = [v for v in daily.get("temperature_2m_mean", []) if v is not None]
     tmax = [v for v in daily.get("temperature_2m_max", []) if v is not None]
+
+    # Construction-workability counts (mean days/year over the record).
+    n_years = max(NORMALS_YEARS, 1)
+    heavy_rain_days = round(sum(1 for v in daily.get("precipitation_sum", [])
+                                if v is not None and v > 10.0) / n_years, 0)
+    extreme_heat_days = round(sum(1 for v in daily.get("temperature_2m_max", [])
+                                  if v is not None and v > 35.0) / n_years, 0)
+    frost_days = round(sum(1 for v in daily.get("temperature_2m_min", [])
+                           if v is not None and v < 0.0) / n_years, 0)
+    wettest, driest = _rain_months(times, daily.get("precipitation_sum", []))
 
     n = NORMALS_YEARS
     annual_precip = round(sum(precip) / n, 0) if precip else None      # mean annual
@@ -93,8 +104,36 @@ async def fetch_climate(client: httpx.AsyncClient, lat: float, lon: float) -> Cl
         cdd18=cdd,
         heating_design_temp_c=heating_design,
         cooling_design_temp_c=cooling_design,
+        heavy_rain_days=heavy_rain_days,
+        extreme_heat_days=extreme_heat_days,
+        frost_days=frost_days,
+        wettest_month=wettest,
+        driest_month=driest,
         source=f"Open-Meteo ERA5 reanalysis ({start_yr}-{end_yr} normals)",
     )
+
+
+_MONTHS = ["January", "February", "March", "April", "May", "June", "July",
+           "August", "September", "October", "November", "December"]
+
+
+def _rain_months(times: list[str], precip: list) -> tuple[Optional[str], Optional[str]]:
+    """Wettest and driest calendar month by total precipitation across the record."""
+    sums = [0.0] * 12
+    seen = [False] * 12
+    for t, v in zip(times, precip):
+        if v is None or not t or len(t) < 7:
+            continue
+        m = int(t[5:7]) - 1
+        if 0 <= m < 12:
+            sums[m] += v
+            seen[m] = True
+    idx = [i for i in range(12) if seen[i]]
+    if not idx:
+        return None, None
+    wettest = max(idx, key=lambda i: sums[i])
+    driest = min(idx, key=lambda i: sums[i])
+    return _MONTHS[wettest], _MONTHS[driest]
 
 
 def _percentile(values: list[float], pct: float) -> float:

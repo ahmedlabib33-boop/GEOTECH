@@ -45,6 +45,7 @@ L.control.layers(
 
 // Layer group for the nearest-water marker + connector line (per assessment).
 const waterGroup = L.layerGroup().addTo(map);
+const logisticsGroup = L.layerGroup().addTo(map);
 L.control.scale({ imperial: false }).addTo(map);
 
 let marker = null;
@@ -471,6 +472,86 @@ function spectrumSvg(pts) {
   </svg>`;
 }
 
+const _RISK_COLOR = { Low: "#2e7d32", Moderate: "#f9a825", High: "#ef6c00",
+  "Very High": "#c62828", "Insufficient data": "#90a4ae" };
+
+// Bid risk register — the headline panel for a tender/desk study.
+function bidRiskPanel(r) {
+  let h = `<div class="sec-head"><h3>🧭 Bid Risk Register</h3>
+    <span class="src-badge estimated" title="Synthesis of the findings below">Synthesis</span></div>`;
+  const col = _RISK_COLOR[r.overall_rating] || "#607d8b";
+  if (r.index != null) {
+    h += `<div style="display:flex;align-items:center;gap:14px;padding:10px 12px;margin:6px 0;
+      border-left:6px solid ${col};background:rgba(127,127,127,.08);border-radius:6px">
+      <div style="font-size:28px;font-weight:700;color:${col};line-height:1">
+        ${r.index.toFixed(0)}<span style="font-size:13px;color:#8aa">/100</span></div>
+      <div style="font-size:13px"><b style="color:${col}">${esc(r.overall_rating)} bid risk</b><br>
+      <span style="opacity:.8">${esc(r.summary || "")}</span></div></div>`;
+  }
+  h += `<table style="width:100%;border-collapse:collapse;font-size:12.5px;margin:4px 0">
+    <thead><tr style="text-align:left;opacity:.7">
+      <th style="padding:3px 6px">Area</th><th style="padding:3px 6px">Level</th>
+      <th style="padding:3px 6px">Contingency driver</th></tr></thead><tbody>`;
+  for (const it of (r.items || [])) {
+    const c = _RISK_COLOR[it.level] || "#90a4ae";
+    h += `<tr style="border-top:1px solid rgba(127,127,127,.18)">
+      <td style="padding:4px 6px">${esc(it.category)}</td>
+      <td style="padding:4px 6px;white-space:nowrap">
+        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:${c};margin-right:5px"></span>${esc(it.level)}</td>
+      <td style="padding:4px 6px;opacity:.85">${esc(it.contingency_driver || it.rationale || "—")}</td></tr>`;
+  }
+  return h + `</tbody></table>`;
+}
+
+function countryPanel(c) {
+  let h = head("🌍", "Country &amp; regulatory context", "estimated",
+    "Nominatim + reference lookup", null);
+  h += kv([
+    ["Country", u(c.country) + (c.country_code ? " (" + c.country_code + ")" : "")],
+    ["Currency (ref.)", u(c.currency)],
+    ["Units", u(c.measurement_system)],
+    ["Structural code (likely)", u(c.structural_code)],
+    ["Seismic code", u(c.seismic_code)],
+    ["Wind / snow code", u(c.wind_snow_code)],
+    ["UTM zone / EPSG", u(c.utm_zone) + (c.epsg_code ? " · " + c.epsg_code : "")],
+    ["Hemisphere", u(c.hemisphere)],
+  ]);
+  for (const n of (c.notes || [])) h += `<div class="meter-why">${esc(n)}</div>`;
+  return h;
+}
+
+function logisticsPanel(lo) {
+  const LABEL = { seaport: "⚓ Nearest seaport", airport: "✈ Nearest airport",
+    major_road: "🛣 Nearest major road", railway: "🚆 Nearest railway",
+    urban_centre: "🏙 Nearest town/city", quarry: "⛏ Nearest quarry", power: "⚡ Nearest grid/substation" };
+  let h = head("🚢", "Site logistics &amp; access", "measured",
+    "OpenStreetMap", "https://www.openstreetmap.org/");
+  if (lo.mobilization_rating)
+    h += `<div class="rec"><b>Mobilization: ${esc(lo.mobilization_rating)}.</b> ${esc(lo.access_note || "")}</div>`;
+  const rows = [];
+  for (const poi of (lo.pois || [])) {
+    rows.push([LABEL[poi.kind] || poi.kind,
+      u(poi.distance_km, " km") + (poi.name ? " — " + esc(poi.name) : "")]);
+  }
+  h += rows.length ? kv(rows) : "";
+  if (lo.note) h += `<div class="meter-why">${esc(lo.note)}</div>`;
+  return h;
+}
+
+function constructionClimatePanel(cc) {
+  let h = head("📅", "Construction workability", "modelled",
+    "Open-Meteo ERA5", "https://open-meteo.com/");
+  h += kv([
+    ["Workable days / yr", u(cc.workable_days_per_year) + (cc.workability_rating ? " (" + cc.workability_rating + ")" : "")],
+    ["Heavy-rain days (>10 mm)", u(cc.heavy_rain_days)],
+    ["Extreme-heat days (>35°C)", u(cc.extreme_heat_days)],
+    ["Frost days (<0°C)", u(cc.frost_days)],
+    ["Wettest / driest month", u(cc.wettest_month) + " / " + u(cc.driest_month)],
+  ]);
+  for (const n of (cc.notes || [])) h += `<div class="meter-why">${esc(n)}</div>`;
+  return h;
+}
+
 function render(a) {
   const badge = $("modeBadge");
   badge.textContent = "LIVE DATA";
@@ -489,6 +570,20 @@ function render(a) {
     L.polyline([[a.location.lat, a.location.lon], wll],
       { color: "#39a0ff", weight: 2, dashArray: "5,6", opacity: 0.8 }).addTo(waterGroup);
   }
+
+  // Plot logistics POIs (port/airport/town/…) as labelled markers.
+  logisticsGroup.clearLayers();
+  const LOGI_ICON = { seaport: "⚓", airport: "✈", major_road: "🛣", railway: "🚆",
+    urban_centre: "🏙", quarry: "⛏", power: "⚡" };
+  for (const poi of ((a.logistics && a.logistics.pois) || [])) {
+    if (poi.lat == null || poi.lon == null) continue;
+    L.marker([poi.lat, poi.lon], {
+      icon: L.divIcon({ className: "logi-pin", html: `<span>${LOGI_ICON[poi.kind] || "📍"}</span>`,
+        iconSize: [22, 22] }) })
+      .bindTooltip(`${(LOGI_ICON[poi.kind] || "")} ${poi.name || poi.kind} · ${poi.distance_km} km`)
+      .addTo(logisticsGroup);
+  }
+
   let html = "";
 
   if (a.warnings && a.warnings.length)
@@ -499,6 +594,8 @@ function render(a) {
     + (a.location.country ? ` · ${esc(a.location.country)}` : "") + ` · ${esc(a.generated_utc)}</div>`;
 
   if (a.suitability) html += suitabilityGauge(a.suitability);
+  if (a.bid_risk) html += bidRiskPanel(a.bid_risk);
+  if (a.country_context) html += countryPanel(a.country_context);
 
   if (a.commentary) {
     html += `<div class="commentary"><div class="commentary-head">🧠 AI engineering commentary</div>
@@ -706,6 +803,9 @@ function render(a) {
     if (sd.importance_note) html += `<div class="meter-why">${esc(sd.importance_note)}</div>`;
     for (const n of (sd.notes || [])) html += `<div class="meter-why">${esc(n)}</div>`;
   }
+
+  if (a.logistics) html += logisticsPanel(a.logistics);
+  if (a.construction_climate) html += constructionClimatePanel(a.construction_climate);
 
   html += `<h3>✅ Recommendations</h3>`;
   for (const r of a.recommendations)

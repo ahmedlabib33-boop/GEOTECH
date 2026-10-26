@@ -11,13 +11,13 @@ from datetime import datetime, timezone
 
 from .schemas import (AssessRequest, Assessment, Climate, GeotechParameters,
                       HazardRating, Hydrology, Location, SeismicContext,
-                      SoilProfile, Terrain, Vegetation, WindSnowStudy)
+                      SiteLogistics, SoilProfile, Terrain, Vegetation, WindSnowStudy)
 from .services.http import new_client, with_retry
 from .services import (geocoding, terrain as terrain_svc, soil as soil_svc,
                        seismic as seismic_svc, climate as climate_svc,
                        vegetation as veg_svc, hydrology as hydro_svc,
                        sentinelhub as sh_svc, groundmotion as gm_svc,
-                       windsnow as windsnow_svc)
+                       windsnow as windsnow_svc, logistics as logistics_svc)
 from .engineering.parameters import build_parameters
 from .engineering.borehole import build_parameters_from_borehole, has_usable_data
 from .engineering.hazards import all_hazards
@@ -26,6 +26,9 @@ from .engineering.suitability import build_suitability
 from .engineering.hvac import build_hvac
 from .engineering.utilities import build_underground
 from .engineering.seismic_design import build_seismic_design
+from .engineering.country import build_country_context
+from .engineering.construction_climate import build_construction_climate
+from .engineering.bid import build_bid_risk
 from . import llm
 
 DISCLAIMER = (
@@ -67,6 +70,7 @@ async def _gather_live(lat: float, lon: float):
             # Wind/snow pulls a long hourly snow series; one attempt keeps the
             # whole gather within the 60 s function budget (like soil).
             with_retry(lambda: windsnow_svc.fetch_windsnow(client, lat, lon), attempts=1),
+            with_retry(lambda: logistics_svc.fetch_logistics(client, lat, lon), attempts=1),
             return_exceptions=True,
         )
     return results
@@ -79,7 +83,7 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
 
     data_mode = "live"
     if True:
-        (t_res, s_res, q_res, c_res, v_res, h_res, ws_res), sentinel, ground_motion = \
+        (t_res, s_res, q_res, c_res, v_res, h_res, ws_res, lo_res), sentinel, ground_motion = \
             await asyncio.gather(
                 _gather_live(lat, lon),
                 sh_svc.fetch_sentinel(lat, lon),
@@ -134,6 +138,13 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
         else:
             wind_snow = None
             warnings.append("Wind/snow (ERA5 extremes) unavailable — not substituted (real-only).")
+
+        # Site logistics / access (OSM). Degrades gracefully to a note.
+        if isinstance(lo_res, SiteLogistics):
+            logistics = lo_res
+        else:
+            logistics = None
+            warnings.append("Logistics (OSM Overpass) unavailable — not substituted (real-only).")
 
         # Upgrade NDVI to the Sentinel-2 10 m reading when available (real data).
         if sentinel is not None and sentinel.ndvi is not None:
@@ -200,6 +211,11 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
     underground = build_underground(soil, climate, hydrology, terrain, gw_depth)
     seismic_design = build_seismic_design(
         seismic if seismic_ok else None, params.vs30_proxy_mps, req.design_pga_g)
+    # Overseas-bidding layer
+    country_context = build_country_context(location)
+    construction_climate = build_construction_climate(climate)
+    bid_risk = build_bid_risk(hazards, params, logistics, construction_climate,
+                              country_context)
 
     assessment = Assessment(
         project_name=req.project_name or "Untitled Site",
@@ -220,6 +236,10 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
         underground=underground,
         wind_snow=wind_snow,
         seismic_design=seismic_design,
+        country_context=country_context,
+        logistics=logistics,
+        construction_climate=construction_climate,
+        bid_risk=bid_risk,
         hazards=hazards,
         recommendations=recommendations,
         data_mode=data_mode,

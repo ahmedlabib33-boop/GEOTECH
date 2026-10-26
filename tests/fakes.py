@@ -9,8 +9,8 @@ import math
 from datetime import date
 
 from backend.schemas import (Climate, GroundMotion, Hydrology, Location,
-                             SeismicContext, SoilLayer, SoilProfile, Terrain,
-                             Vegetation, WindSnowStudy)
+                             LogisticsPOI, SeismicContext, SiteLogistics, SoilLayer,
+                             SoilProfile, Terrain, Vegetation, WindSnowStudy)
 from backend.engineering.classification import usda_texture, usda_to_uscs
 
 DEPTHS = [("0-5cm", 0, 5), ("5-15cm", 5, 15), ("15-30cm", 15, 30),
@@ -69,12 +69,17 @@ def fake_climate(lat: float, lon: float) -> Climate:
     fdd = round(max(0.0, -min_t) * 25, 0) if min_t < 0 else 0.0
     hdd = round(max(0.0, (18 - mean_t)) * 300, 0)
     cdd = round(max(0.0, (mean_t - 18)) * 200, 0)
+    rain_days = round(min(precip / 1000.0 * 45, 200), 0)
+    heat_days = round(max(0.0, (mean_t + 10) - 35) * 20, 0)
+    frost_d = round(max(0.0, -min_t) * 4, 0)
     return Climate(year=date.today().year - 1, years_averaged=5, annual_precip_mm=precip,
                    min_temp_c=min_t, mean_temp_c=mean_t, max_temp_c=round(mean_t + 10, 1),
                    freezing_degree_days=fdd, frost_depth_m=frost_depth_from_fdd(fdd),
                    wetness_class=wetness(precip), hdd18=hdd, cdd18=cdd,
                    heating_design_temp_c=round(min_t - 2, 1),
-                   cooling_design_temp_c=round(mean_t + 12, 1), source="TEST ERA5")
+                   cooling_design_temp_c=round(mean_t + 12, 1),
+                   heavy_rain_days=rain_days, extreme_heat_days=heat_days, frost_days=frost_d,
+                   wettest_month="December", driest_month="July", source="TEST ERA5")
 
 
 def fake_vegetation(lat: float, lon: float) -> Vegetation:
@@ -107,6 +112,24 @@ def fake_windsnow(lat: float, lon: float) -> WindSnowStudy:
                            dominant_wind_dir="SW", years=15)
     study.source = "TEST ERA5 extremes"
     return study
+
+
+def fake_logistics(lat: float, lon: float) -> SiteLogistics:
+    from backend.services.logistics import _rating
+    port = round(20 + _pseudo(lat, lon + 11) * 380, 1)
+    road = round(1 + _pseudo(lon + 12, lat) * 40, 1)
+    urban = round(3 + _pseudo(lat + 13, lon) * 120, 1)
+    air = round(10 + _pseudo(lat, lon + 14) * 180, 1)
+    pois = [
+        LogisticsPOI(kind="seaport", name="Test Port", distance_km=port, lat=lat + 0.5, lon=lon + 0.5),
+        LogisticsPOI(kind="airport", name="Test Intl", distance_km=air, lat=lat - 0.3, lon=lon + 0.2),
+        LogisticsPOI(kind="major_road", name="Hwy 1", distance_km=road, lat=lat + 0.05, lon=lon),
+        LogisticsPOI(kind="urban_centre", name="Test City", distance_km=urban, lat=lat + 0.2, lon=lon - 0.2),
+    ]
+    rating, note = _rating(port, road, urban)
+    return SiteLogistics(pois=pois, nearest_port_km=port, nearest_airport_km=air,
+                         nearest_major_road_km=road, nearest_urban_km=urban,
+                         mobilization_rating=rating, access_note=note, source="TEST logistics")
 
 
 def fake_seismic(lat: float, lon: float) -> SeismicContext:

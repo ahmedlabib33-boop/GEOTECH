@@ -22,11 +22,13 @@ async def geocode(client: httpx.AsyncClient, place: str) -> Optional[Location]:
         return None
     hit = data[0]
     addr = hit.get("address", {}) or {}
+    cc = addr.get("country_code")
     return Location(
         lat=float(hit["lat"]),
         lon=float(hit["lon"]),
         display_name=hit.get("display_name"),
         country=addr.get("country"),
+        country_code=cc.upper() if cc else None,
     )
 
 
@@ -47,6 +49,8 @@ async def reverse(client: httpx.AsyncClient, lat: float, lon: float) -> Location
         if data.get("display_name"):
             loc.display_name = data["display_name"]
         loc.country = addr.get("country")
+        cc = addr.get("country_code")
+        loc.country_code = cc.upper() if cc else None
     except Exception:
         pass
     return loc
