@@ -112,6 +112,10 @@ satellite soil model:
 The report then marks these parameters **"Measured — from borehole"** and shows
 the borehole log. API: add a `borehole` object to the `/api/assess` body.
 
+**CSV import:** instead of typing rows, paste or upload a CSV/TSV with columns
+like `top, base, description, uscs, spt_n` (headers auto-detected, order
+flexible); the layers populate automatically.
+
 ## Optional: Sentinel-2 10 m high-resolution indices (Sentinel Hub)
 
 When credentials are set, the app pulls real **10 m Sentinel-2** indices at the

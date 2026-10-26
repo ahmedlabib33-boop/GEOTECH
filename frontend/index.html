@@ -63,6 +63,15 @@
           </div>
           <div id="bhRows"></div>
           <button id="bhAdd" type="button" class="bh-add">+ Add layer</button>
+          <div class="bh-import">
+            <div class="bh-import-head">
+              <span>Import from CSV / spreadsheet</span>
+              <input id="bhFile" type="file" accept=".csv,.txt,.tsv" />
+            </div>
+            <textarea id="bhCsv" rows="3" placeholder="Paste rows: top,base,description,uscs,spt_n&#10;0,2,soft CLAY,CL,3&#10;2,8,dense SAND,SP,30"></textarea>
+            <button id="bhLoadCsv" type="button" class="bh-add">Load CSV rows</button>
+            <div id="bhCsvMsg" class="bh-hint"></div>
+          </div>
         </details>
         <label class="checkline">
           <input id="demo" type="checkbox" /> Demo mode (sample data, no network)

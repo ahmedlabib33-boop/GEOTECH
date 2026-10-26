@@ -100,6 +100,59 @@ function addBhRow(v = {}) {
 }
 $("bhAdd").onclick = () => addBhRow();
 
+// Parse pasted/uploaded CSV (or TSV) into borehole rows. Flexible headers.
+function parseBhCsv(text) {
+  const lines = text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  if (!lines.length) return { rows: [], err: "No data found." };
+  const delim = lines[0].includes("\t") ? "\t" : (lines[0].includes(";") ? ";" : ",");
+  const split = (l) => l.split(delim).map((c) => c.trim().replace(/^"|"$/g, ""));
+  let start = 0, idx = { top: 0, bot: 1, desc: 2, uscs: 3, n: 4 };
+  const first = split(lines[0]).map((c) => c.toLowerCase());
+  const looksHeader = first.some((c) => /top|base|bottom|depth|desc|uscs|spt|^n$/.test(c));
+  if (looksHeader) {
+    start = 1;
+    const find = (re, d) => { const i = first.findIndex((c) => re.test(c)); return i < 0 ? d : i; };
+    idx = {
+      top: find(/top|from|depth.*top|^depth$/, 0),
+      bot: find(/base|bottom|to\b|depth.*base/, 1),
+      desc: find(/desc|soil|strata|material/, 2),
+      uscs: find(/uscs|class|symbol/, 3),
+      n: find(/spt|blows|^n$|n.?value/, 4),
+    };
+  }
+  const rows = [];
+  for (let i = start; i < lines.length; i++) {
+    const c = split(lines[i]);
+    const top = parseFloat(c[idx.top]), bot = parseFloat(c[idx.bot]);
+    if (Number.isNaN(top) || Number.isNaN(bot) || bot <= top) continue;
+    const nv = c[idx.n] != null ? parseInt(c[idx.n], 10) : NaN;
+    rows.push({ top, bot, desc: c[idx.desc] || "", uscs: c[idx.uscs] || "",
+      n: Number.isNaN(nv) ? "" : nv });
+  }
+  return { rows, err: rows.length ? null : "No valid layer rows (need numeric top<base)." };
+}
+
+function loadBhCsv(text) {
+  const { rows, err } = parseBhCsv(text);
+  const msg = $("bhCsvMsg");
+  if (err) { msg.textContent = "⚠ " + err; return; }
+  if ([...document.querySelectorAll(".bh-row")].length &&
+      !confirm(`Replace current layers with ${rows.length} imported row(s)?`)) return;
+  $("bhRows").innerHTML = "";
+  rows.forEach(addBhRow);
+  msg.textContent = `✔ Imported ${rows.length} layer(s).`;
+  document.querySelector("details.borehole").open = true;
+}
+
+$("bhLoadCsv").onclick = () => loadBhCsv($("bhCsv").value);
+$("bhFile").onchange = (e) => {
+  const f = e.target.files[0];
+  if (!f) return;
+  const rd = new FileReader();
+  rd.onload = () => { $("bhCsv").value = rd.result; loadBhCsv(rd.result); };
+  rd.readAsText(f);
+};
+
 function readBorehole() {
   const rows = [...document.querySelectorAll(".bh-row")];
   const layers = [];
