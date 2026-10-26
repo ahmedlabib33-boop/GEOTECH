@@ -8,7 +8,9 @@ from __future__ import annotations
 
 import math
 
-from ..schemas import (Location, SeismicContext, SoilLayer, SoilProfile, Terrain)
+from datetime import date
+
+from ..schemas import (Climate, Location, SeismicContext, SoilLayer, SoilProfile, Terrain)
 from ..engineering.classification import usda_texture, usda_to_uscs
 
 DEPTHS = [("0-5cm", 0, 5), ("5-15cm", 5, 15), ("15-30cm", 15, 30),
@@ -63,6 +65,22 @@ def demo_soil(lat: float, lon: float) -> SoilProfile:
     from .soil import _summarise
     _summarise(profile)
     return profile
+
+
+def demo_climate(lat: float, lon: float) -> Climate:
+    from .climate import frost_depth_from_fdd, wetness
+    # Rainfall loosely higher near the equator; cold increases with |lat|.
+    wet = _pseudo(lat + 3, lon)
+    precip = round(100 + wet * 2200 * max(0.2, math.cos(math.radians(lat))), 0)
+    mean_t = round(27 - abs(lat) * 0.55 + (_pseudo(lon, lat) - 0.5) * 6, 1)
+    min_t = round(mean_t - 8 - abs(lat) * 0.25, 1)
+    fdd = round(max(0.0, -min_t) * 25, 0) if min_t < 0 else 0.0
+    return Climate(
+        year=date.today().year - 1,
+        annual_precip_mm=precip, min_temp_c=min_t, mean_temp_c=mean_t,
+        freezing_degree_days=fdd, frost_depth_m=frost_depth_from_fdd(fdd),
+        wetness_class=wetness(precip),
+        source="DEMO (sample data — not a real climate query)", note="Offline demo mode.")
 
 
 def demo_seismic(lat: float, lon: float) -> SeismicContext:

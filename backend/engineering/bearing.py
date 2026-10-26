@@ -41,6 +41,30 @@ def allowable_bearing(c_kpa: float, phi_deg: float, gamma_kn_m3: float,
     return q_ult, q_all_net
 
 
+def elastic_settlement_mm(q_net_kpa: float, width_b_m: float,
+                          es_mpa: float, poisson: float = 0.3,
+                          influence: float = 1.0) -> float:
+    """Immediate (elastic) settlement of a flexible footing (mm).
+
+    S = q * B * (1 - nu^2) * I / Es.  Indicative screening estimate.
+    """
+    if es_mpa <= 0:
+        return 0.0
+    es_kpa = es_mpa * 1000.0
+    s_m = q_net_kpa * width_b_m * (1 - poisson ** 2) * influence / es_kpa
+    return round(max(s_m, 0.0) * 1000.0, 1)
+
+
+def settlement_sensitivity(settlement_mm: float) -> str:
+    if settlement_mm < 15:
+        return "Low (within typical 25 mm tolerance)"
+    if settlement_mm < 25:
+        return "Moderate (approaching 25 mm limit)"
+    if settlement_mm < 50:
+        return "High (likely exceeds tolerance — widen footing or improve ground)"
+    return "Very high (settlement-governed — deep/raft foundations indicated)"
+
+
 def slope_reduction(slope_deg: Optional[float]) -> float:
     """Reduction factor applied to allowable bearing on sloping ground."""
     if slope_deg is None or slope_deg < 5:

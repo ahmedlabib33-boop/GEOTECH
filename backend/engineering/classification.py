@@ -80,10 +80,47 @@ _DEFAULT = {"uscs": "SM/CL", "phi": 28, "cohesion": 10, "gamma": 18.5,
             "description": "Mixed soil"}
 
 
+# Representative drained elastic (Young's) modulus Es [MPa] and small-strain
+# shear-wave velocity Vs30 proxy [m/s] per USDA texture — screening values.
+SOIL_STIFFNESS: dict[str, tuple[float, float]] = {
+    "Sand":            (35, 300),
+    "Loamy sand":      (28, 270),
+    "Sandy loam":      (22, 250),
+    "Loam":            (18, 230),
+    "Silt loam":       (14, 210),
+    "Silt":            (10, 190),
+    "Sandy clay loam": (16, 220),
+    "Clay loam":       (12, 200),
+    "Silty clay loam": (10, 185),
+    "Sandy clay":      (13, 205),
+    "Silty clay":      (8, 170),
+    "Clay":            (6, 160),
+}
+_DEFAULT_STIFF = (15, 220)
+
+
 def usda_to_uscs(texture: Optional[str]) -> Optional[str]:
     if texture is None:
         return None
     return SOIL_PARAMS.get(texture, _DEFAULT)["uscs"]
+
+
+def stiffness_for(texture: Optional[str]) -> tuple[float, float]:
+    """Return (Es_MPa, Vs30_proxy_mps) for a texture."""
+    if texture is None:
+        return _DEFAULT_STIFF
+    return SOIL_STIFFNESS.get(texture, _DEFAULT_STIFF)
+
+
+def seismic_site_class(vs30: float) -> str:
+    """NEHRP / Eurocode-8-style site class from Vs30 (m/s)."""
+    if vs30 >= 760:
+        return "B (rock)"
+    if vs30 >= 360:
+        return "C (very dense soil / soft rock)"
+    if vs30 >= 180:
+        return "D (stiff soil)"
+    return "E (soft soil — amplifies shaking)"
 
 
 def params_for(texture: Optional[str]) -> dict:

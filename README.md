@@ -26,6 +26,7 @@ a site-specific investigation by a qualified geotechnical engineer.
 | Terrain (elevation, slope, aspect) | [OpenTopoData](https://www.opentopodata.org/) — SRTM 30 m | Horn's method on a 3×3 DEM window |
 | Soil (clay/sand/silt, density, pH, SOC) | [ISRIC SoilGrids v2.0](https://soilgrids.org/) — 250 m global | USDA texture → approx. USCS group |
 | Seismicity | [USGS Earthquake Catalog](https://earthquake.usgs.gov/) | M≥4 events within 300 km |
+| Climate (rainfall, temperature, frost) | [Open-Meteo ERA5](https://open-meteo.com/) reanalysis | annual precip + freezing-degree-days |
 | Geocoding | [OSM Nominatim](https://nominatim.org/) | place name ⇄ coordinates |
 | Satellite basemap | Esri World Imagery tiles | with street / topographic layers |
 
@@ -44,8 +45,15 @@ with no internet.
 - **Geohazard screening** — slope instability/landslide, seismicity,
   expansive/shrink-swell soil, and liquefaction potential, each rated
   Low → Very High with its rationale.
-- **Recommendations** — foundation type, slope/drainage, seismic design, and the
-  mandatory ground-investigation next step.
+- **Settlement** — immediate elastic settlement for the trial footing (mm).
+- **Frost penetration** — modified-Berggren depth from freezing-degree-days →
+  minimum founding depth.
+- **Seismic site class** — NEHRP/EC8-style class from a Vs30 proxy.
+- **Bearing vs footing-width curve** — allowable pressure across footing sizes.
+- **Site Suitability Index (0–100)** — overall score + rating (Favourable →
+  Severe) combining hazards, bearing, settlement and slope.
+- **Recommendations** — foundation type, settlement, frost, drainage, slope,
+  seismic design, and the mandatory ground-investigation next step.
 
 ## Quick start
 

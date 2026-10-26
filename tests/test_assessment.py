@@ -17,6 +17,14 @@ def test_demo_assessment_complete():
     assert a.project_name == "Cairo Test"
     assert a.soil.layers, "expected soil layers"
     assert a.parameters.allowable_bearing_kpa is not None
+    assert a.parameters.settlement_mm is not None
+    assert a.parameters.bearing_curve, "expected a bearing curve"
+    assert a.parameters.seismic_site_class
+    assert a.climate.annual_precip_mm is not None
+    assert a.climate.frost_depth_m is not None
+    assert a.suitability is not None
+    assert 0 <= a.suitability.score <= 100
+    assert a.suitability.rating in ("Favourable", "Marginal", "Challenging", "Severe")
     assert len(a.hazards) == 4
     assert a.recommendations
     assert a.disclaimer

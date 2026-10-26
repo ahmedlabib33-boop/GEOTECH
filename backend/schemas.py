@@ -103,8 +103,28 @@ class SeismicContext(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# Climate (from Open-Meteo reanalysis archive)
+# --------------------------------------------------------------------------- #
+class Climate(BaseModel):
+    year: Optional[int] = None
+    annual_precip_mm: Optional[float] = None
+    min_temp_c: Optional[float] = None
+    mean_temp_c: Optional[float] = None
+    freezing_degree_days: Optional[float] = None
+    frost_depth_m: Optional[float] = None
+    wetness_class: Optional[str] = None
+    source: Optional[str] = None
+    note: Optional[str] = None
+
+
+# --------------------------------------------------------------------------- #
 # Engineering-derived parameters & findings
 # --------------------------------------------------------------------------- #
+class BearingPoint(BaseModel):
+    width_m: float
+    allowable_kpa: float
+
+
 class GeotechParameters(BaseModel):
     """Preliminary geotechnical design parameters inferred from surface data."""
 
@@ -112,10 +132,26 @@ class GeotechParameters(BaseModel):
     friction_angle_deg: Optional[float] = None
     cohesion_kpa: Optional[float] = None
     unit_weight_kn_m3: Optional[float] = None
+    elastic_modulus_mpa: Optional[float] = None
     typical_spt_n: Optional[str] = None
     allowable_bearing_kpa: Optional[float] = None
     ultimate_bearing_kpa: Optional[float] = None
+    settlement_mm: Optional[float] = None
     settlement_sensitivity: Optional[str] = None
+    min_founding_depth_m: Optional[float] = Field(
+        None, description="Recommended minimum founding depth (frost/active zone)"
+    )
+    seismic_site_class: Optional[str] = None
+    vs30_proxy_mps: Optional[float] = None
+    recommended_foundation: Optional[str] = None
+    bearing_curve: list[BearingPoint] = Field(default_factory=list)
+
+
+class Suitability(BaseModel):
+    score: float  # 0..100
+    rating: str   # Favourable / Marginal / Challenging / Severe
+    summary: str
+    drivers: list[str] = Field(default_factory=list)
 
 
 class HazardRating(BaseModel):
@@ -139,7 +175,9 @@ class Assessment(BaseModel):
     terrain: Terrain
     soil: SoilProfile
     seismic: SeismicContext
+    climate: Climate = Field(default_factory=Climate)
     parameters: GeotechParameters
+    suitability: Optional[Suitability] = None
     hazards: list[HazardRating] = Field(default_factory=list)
     recommendations: list[Recommendation] = Field(default_factory=list)
     data_mode: str = "live"  # "live" or "demo"

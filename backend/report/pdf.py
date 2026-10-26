@@ -79,6 +79,30 @@ def build_pdf(a: Assessment) -> bytes:
         story.append(Spacer(1, 6))
         story.append(Paragraph("<b>Data notes:</b> " + " ".join(a.warnings), ss["Disc"]))
 
+    # Suitability banner
+    if a.suitability:
+        su = a.suitability
+        col = {"Favourable": _LEVEL_COLORS["Low"], "Marginal": _LEVEL_COLORS["Moderate"],
+               "Challenging": _LEVEL_COLORS["High"], "Severe": _LEVEL_COLORS["Very High"]}.get(
+            su.rating, colors.grey)
+        story.append(Spacer(1, 8))
+        banner = Table([[
+            Paragraph(f'<font color="white" size="20"><b>{su.score:.0f}</b></font>'
+                      f'<font color="white" size="9">/100</font>', ss["Cell"]),
+            Paragraph(f'<font color="white"><b>Site Suitability: {su.rating}</b><br/>'
+                      f'{su.summary}</font>', ss["Cell"]),
+        ]], colWidths=[28 * mm, 150 * mm])
+        banner.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), col),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 7), ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
+        ]))
+        story.append(banner)
+        if su.drivers:
+            story.append(Spacer(1, 3))
+            story.append(Paragraph("Key drivers: " + "; ".join(su.drivers), ss["Disc"]))
+
     # Terrain
     story.append(Paragraph("1. Terrain &amp; Topography", ss["H2"]))
     t = a.terrain
@@ -128,14 +152,38 @@ def build_pdf(a: Assessment) -> bytes:
         ("Friction angle φ'", f"{p.friction_angle_deg}°"),
         ("Cohesion c", f"{p.cohesion_kpa} kPa"),
         ("Unit weight γ", f"{p.unit_weight_kn_m3} kN/m³"),
+        ("Elastic modulus Es", f"{p.elastic_modulus_mpa} MPa"),
         ("Typical SPT N", p.typical_spt_n or "-"),
         ("Ultimate bearing q_ult", f"{p.ultimate_bearing_kpa} kPa"),
         ("Net allowable bearing", f"{p.allowable_bearing_kpa} kPa (FS 3.0)"),
-        ("Settlement sensitivity", p.settlement_sensitivity or "-"),
+        ("Est. settlement", f"{p.settlement_mm} mm — {p.settlement_sensitivity or '-'}"),
+        ("Min. founding depth", f"{p.min_founding_depth_m} m"),
+        ("Seismic site class", f"{p.seismic_site_class} (Vs30 proxy ~{p.vs30_proxy_mps} m/s)"),
+        ("Recommended foundation", p.recommended_foundation or "-"),
     ], ss, [48 * mm, 130 * mm]))
 
+    # Bearing vs footing width
+    if p.bearing_curve:
+        pairs = ", ".join(f"B={bp.width_m} m → {bp.allowable_kpa:.0f} kPa"
+                          for bp in p.bearing_curve)
+        story.append(Spacer(1, 2))
+        story.append(Paragraph(f"<b>Allowable bearing vs footing width:</b> {pairs}.", ss["Disc"]))
+
+    # Climate
+    cl = a.climate
+    if cl and (cl.annual_precip_mm is not None or cl.frost_depth_m is not None):
+        story.append(Paragraph("4. Climate &amp; Frost", ss["H2"]))
+        story.append(_kv_table([
+            ("Reference year", str(cl.year or "-")),
+            ("Annual rainfall", f"{cl.annual_precip_mm} mm ({cl.wetness_class or '-'})"),
+            ("Mean / min temperature", f"{cl.mean_temp_c} °C / {cl.min_temp_c} °C"),
+            ("Freezing index", f"{cl.freezing_degree_days} °C-days"),
+            ("Est. frost penetration", f"{cl.frost_depth_m} m"),
+            ("Source", cl.source or "-"),
+        ], ss, [48 * mm, 130 * mm]))
+
     # Hazards
-    story.append(Paragraph("4. Geohazard Screening", ss["H2"]))
+    story.append(Paragraph("5. Geohazard Screening", ss["H2"]))
     hrows = [[Paragraph("<b>Hazard</b>", ss["CellB"]),
               Paragraph("<b>Rating</b>", ss["CellB"]),
               Paragraph("<b>Basis</b>", ss["CellB"])]]
@@ -158,7 +206,7 @@ def build_pdf(a: Assessment) -> bytes:
 
     # Seismic detail
     s = a.seismic
-    story.append(Paragraph("5. Seismic Context", ss["H2"]))
+    story.append(Paragraph("6. Seismic Context", ss["H2"]))
     story.append(_kv_table([
         ("Search radius", f"{s.search_radius_km:.0f} km"),
         ("M≥4 events on record", str(s.event_count)),
@@ -170,7 +218,7 @@ def build_pdf(a: Assessment) -> bytes:
     ], ss, [48 * mm, 130 * mm]))
 
     # Recommendations
-    story.append(Paragraph("6. Preliminary Recommendations", ss["H2"]))
+    story.append(Paragraph("7. Preliminary Recommendations", ss["H2"]))
     for r in a.recommendations:
         story.append(Paragraph(f"<b>{r.category}.</b> {r.text}", ss["Body"]))
         story.append(Spacer(1, 3))

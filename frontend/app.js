@@ -128,12 +128,86 @@ $("pdfBtn").onclick = async () => {
 };
 
 // ---- Rendering -----------------------------------------------------------
-const esc = (s) => String(s ?? "—").replace(/[&<>]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+const esc = (s) => String(s ?? "—").replace(/[&<>"]/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const cls = (lvl) => "badge " + String(lvl || "").replace(/\s+/g, "");
+const sev = (lvl) => ({ Low: 20, "Low to Moderate": 35, Moderate: 50,
+  "Moderate to high": 60, High: 75, "Very High": 92 }[lvl] ?? 40);
+
+// Texture → fill colour for the soil-profile column.
+const TEXCOLOR = {
+  Sand: "#e3c884", "Loamy sand": "#d9b86a", "Sandy loam": "#c9a24f",
+  Loam: "#a8894a", "Silt loam": "#b9a06a", Silt: "#cdbb8a",
+  "Sandy clay loam": "#9a7b53", "Clay loam": "#8a6b4a", "Silty clay loam": "#7d6150",
+  "Sandy clay": "#8f6b55", "Silty clay": "#6f5648", Clay: "#5e4a3f",
+};
 
 function kv(pairs) {
   return `<div class="kv">` + pairs.map(([k, v]) =>
     `<div class="k">${esc(k)}</div><div class="v">${esc(v)}</div>`).join("") + `</div>`;
+}
+
+const sevColor = (p) => p < 30 ? "#2e7d32" : p < 50 ? "#f9a825" : p < 70 ? "#ef6c00" : "#c62828";
+
+function suitabilityGauge(su) {
+  const score = su.score;
+  const color = score >= 75 ? "#2e7d32" : score >= 55 ? "#f9a825"
+    : score >= 35 ? "#ef6c00" : "#c62828";
+  const drivers = (su.drivers || []).map((d) => `<li>${esc(d)}</li>`).join("");
+  return `<div class="suit">
+    <div class="gauge" style="--pct:${score};--col:${color}">
+      <div class="gauge-inner"><span class="gscore">${score}</span><span class="gmax">/100</span></div>
+    </div>
+    <div class="suit-text">
+      <div class="suit-rating" style="color:${color}">${esc(su.rating)}</div>
+      <div class="suit-sum">${esc(su.summary)}</div>
+      <ul class="suit-drivers">${drivers}</ul>
+    </div></div>`;
+}
+
+function hazardMeters(hazards) {
+  return hazards.map((h) => {
+    const p = sev(h.level);
+    return `<div class="meter-row">
+      <div class="meter-head"><span>${esc(h.name)}</span>
+        <span class="${cls(h.level)}">${esc(h.level)}</span></div>
+      <div class="meter"><div class="meter-fill" style="width:${p}%;background:${sevColor(p)}"></div></div>
+      <div class="meter-why">${esc(h.rationale)}</div></div>`;
+  }).join("");
+}
+
+function soilColumn(soil) {
+  const layers = soil.layers || [];
+  if (!layers.length) return "";
+  const maxD = layers[layers.length - 1].bottom_cm || 200;
+  const bars = layers.map((l) => {
+    const h = ((l.bottom_cm - l.top_cm) / maxD) * 100;
+    const col = TEXCOLOR[l.usda_texture] || "#8a7a63";
+    return `<div class="soil-seg" style="height:${h}%;background:${col}"
+      title="${esc(l.depth_label)}: ${esc(l.usda_texture)}">
+      <span class="soil-lab">${esc(l.usda_texture || "")} · ${esc(l.clay_pct)}% clay</span></div>`;
+  }).join("");
+  return `<div class="soil-viz"><div class="soil-col">${bars}</div>
+    <div class="soil-axis"><span>0</span><span>${maxD} cm</span></div></div>`;
+}
+
+function bearingChart(curve) {
+  if (!curve || !curve.length) return "";
+  const W = 320, H = 150, pad = 34;
+  const xs = curve.map((p) => p.width_m), ys = curve.map((p) => p.allowable_kpa);
+  const xmax = Math.max(...xs), ymax = Math.max(...ys, 10);
+  const px = (x) => pad + (x / xmax) * (W - pad - 8);
+  const py = (y) => H - pad - (y / ymax) * (H - pad - 10);
+  const pts = curve.map((p) => `${px(p.width_m)},${py(p.allowable_kpa)}`).join(" ");
+  const dots = curve.map((p) => `<circle cx="${px(p.width_m)}" cy="${py(p.allowable_kpa)}" r="2.5" fill="#2a7f62"/>`).join("");
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" width="100%">
+    <line x1="${pad}" y1="${H - pad}" x2="${W - 6}" y2="${H - pad}" stroke="#2a3a47"/>
+    <line x1="${pad}" y1="10" x2="${pad}" y2="${H - pad}" stroke="#2a3a47"/>
+    <polyline points="${pts}" fill="none" stroke="#2a7f62" stroke-width="2"/>${dots}
+    <text x="${W / 2}" y="${H - 6}" fill="#9fb3c0" font-size="10" text-anchor="middle">Footing width B (m)</text>
+    <text x="10" y="${H / 2}" fill="#9fb3c0" font-size="10" transform="rotate(-90 10 ${H / 2})" text-anchor="middle">q_allow (kPa)</text>
+    <text x="${pad}" y="10" fill="#6f8497" font-size="9">${ymax.toFixed(0)}</text>
+  </svg>`;
 }
 
 function render(a) {
@@ -141,61 +215,61 @@ function render(a) {
   badge.textContent = a.data_mode === "live" ? "LIVE DATA" : "DEMO DATA";
   badge.className = "mode-badge " + a.data_mode;
 
-  const t = a.terrain, p = a.parameters, s = a.seismic;
+  const t = a.terrain, p = a.parameters, s = a.seismic, cl = a.climate || {};
   let html = "";
 
   if (a.warnings && a.warnings.length)
     html += `<div class="warn">⚠ ${a.warnings.map(esc).join(" ")}</div>`;
 
   html += `<h3>📍 ${esc(a.location.display_name || a.project_name)}</h3>`;
+  html += `<div class="sub">${a.location.lat.toFixed(5)}, ${a.location.lon.toFixed(5)}`
+    + (a.location.country ? ` · ${esc(a.location.country)}` : "") + ` · ${esc(a.generated_utc)}</div>`;
+
+  if (a.suitability) html += suitabilityGauge(a.suitability);
+
+  html += `<h3>⚠️ Geohazard screening</h3>${hazardMeters(a.hazards)}`;
+
+  html += `<h3>🪨 Soil profile (to 2 m)</h3>`;
+  html += `<div class="split"><div>${soilColumn(a.soil)}</div><div>` + kv([
+    ["Dominant", `${esc(a.soil.dominant_usda_texture)} (${esc(a.soil.dominant_uscs_group)})`],
+    ["Topsoil clay", a.soil.layers[0] ? a.soil.layers[0].clay_pct + "%" : "—"],
+    ["Source", a.soil.source && a.soil.source.includes("DEMO") ? "sample" : "SoilGrids"],
+  ]) + `</div></div>`;
+
+  html += `<h3>🏗️ Foundation &amp; parameters</h3>`;
   html += kv([
-    ["Coordinates", `${a.location.lat.toFixed(5)}, ${a.location.lon.toFixed(5)}`],
-    ["Country", a.location.country],
-    ["Generated", a.generated_utc],
+    ["Recommended", p.recommended_foundation],
+    ["Net allowable bearing", p.allowable_bearing_kpa + " kPa (FS 3)"],
+    ["Ultimate bearing", p.ultimate_bearing_kpa + " kPa"],
+    ["Est. settlement", p.settlement_mm + " mm"],
+    ["Min. founding depth", p.min_founding_depth_m + " m"],
+    ["Friction φ' / cohesion c", p.friction_angle_deg + "° / " + p.cohesion_kpa + " kPa"],
+    ["Unit weight / Es", p.unit_weight_kn_m3 + " kN/m³ / " + p.elastic_modulus_mpa + " MPa"],
+    ["Typical SPT N", p.typical_spt_n],
+    ["Seismic site class", p.seismic_site_class + " (Vs30~" + p.vs30_proxy_mps + ")"],
   ]);
+  html += `<div class="chart-wrap"><div class="chart-title">Allowable bearing vs footing width</div>`
+    + bearingChart(p.bearing_curve) + `</div>`;
 
   html += `<h3>🏔️ Terrain</h3>`;
   html += kv([
     ["Elevation", t.elevation_m != null ? t.elevation_m + " m" : "—"],
-    ["Slope", t.slope_deg != null ? t.slope_deg + "°" : "—"],
-    ["Aspect", t.aspect_deg != null ? t.aspect_deg + "°" : "—"],
+    ["Slope / aspect", (t.slope_deg != null ? t.slope_deg + "°" : "—") + " / " + (t.aspect_deg != null ? t.aspect_deg + "°" : "—")],
     ["Terrain class", t.terrain_class],
   ]);
 
-  html += `<h3>🪨 Soil profile</h3><table class="soil"><tr>
-    <th>Depth</th><th>Clay%</th><th>Sand%</th><th>Silt%</th><th>USDA</th><th>USCS</th></tr>`;
-  for (const l of a.soil.layers) {
-    html += `<tr><td>${esc(l.depth_label)}</td><td>${esc(l.clay_pct)}</td>
-      <td>${esc(l.sand_pct)}</td><td>${esc(l.silt_pct)}</td>
-      <td>${esc(l.usda_texture)}</td><td>${esc(l.uscs_group)}</td></tr>`;
-  }
-  html += `</table><div class="kv"><div class="k">Dominant</div>
-    <div class="v">${esc(a.soil.dominant_usda_texture)} (${esc(a.soil.dominant_uscs_group)})</div></div>`;
-
-  html += `<h3>🏗️ Preliminary parameters</h3>`;
+  html += `<h3>🌧️ Climate &amp; frost</h3>`;
   html += kv([
-    ["Description", p.soil_description],
-    ["Friction angle φ'", p.friction_angle_deg + "°"],
-    ["Cohesion c", p.cohesion_kpa + " kPa"],
-    ["Unit weight γ", p.unit_weight_kn_m3 + " kN/m³"],
-    ["Typical SPT N", p.typical_spt_n],
-    ["Net allowable bearing", p.allowable_bearing_kpa + " kPa (FS 3)"],
-    ["Ultimate bearing", p.ultimate_bearing_kpa + " kPa"],
-    ["Settlement sensitivity", p.settlement_sensitivity],
+    ["Annual rainfall", cl.annual_precip_mm != null ? cl.annual_precip_mm + " mm (" + esc(cl.wetness_class) + ")" : "—"],
+    ["Mean / min temp", (cl.mean_temp_c ?? "—") + " / " + (cl.min_temp_c ?? "—") + " °C"],
+    ["Frost penetration", cl.frost_depth_m != null ? cl.frost_depth_m + " m" : "—"],
   ]);
-
-  html += `<h3>⚠️ Geohazard screening</h3>`;
-  for (const h of a.hazards) {
-    html += `<div class="hazard"><span class="${cls(h.level)}">${esc(h.level)}</span>
-      <span><b>${esc(h.name)}</b><br><span class="hz-text">${esc(h.rationale)}</span></span></div>`;
-  }
 
   html += `<h3>🌍 Seismic context</h3>`;
   html += kv([
     ["M≥4 events (300 km)", s.event_count],
     ["Max magnitude", s.max_magnitude ? "M" + s.max_magnitude : "—"],
     ["Nearest significant", s.nearest_significant_km != null ? s.nearest_significant_km + " km" : "—"],
-    ["Hazard level", s.hazard_level],
     ["Indicative PGA", s.estimated_pga_g != null ? s.estimated_pga_g + " g" : "—"],
   ]);
 

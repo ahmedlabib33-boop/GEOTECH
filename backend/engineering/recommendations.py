@@ -1,13 +1,14 @@
 """Generate preliminary recommendations from parameters and hazards."""
 from __future__ import annotations
 
-from ..schemas import (GeotechParameters, HazardRating, Recommendation,
+from ..schemas import (Climate, GeotechParameters, HazardRating, Recommendation,
                        SeismicContext, SoilProfile, Terrain)
 
 
 def build_recommendations(terrain: Terrain, soil: SoilProfile,
                           seismic: SeismicContext, params: GeotechParameters,
-                          hazards: list[HazardRating]) -> list[Recommendation]:
+                          hazards: list[HazardRating],
+                          climate: Climate | None = None) -> list[Recommendation]:
     recs: list[Recommendation] = []
     hz = {h.name: h for h in hazards}
 
@@ -79,6 +80,40 @@ def build_recommendations(terrain: Terrain, soil: SoilProfile,
             text=("Flat, low-lying site: investigate groundwater table and flood "
                   "exposure; provide robust site drainage and consider raising "
                   "finished floor levels.")))
+
+    # Settlement
+    if (params.settlement_mm or 0) >= 25:
+        recs.append(Recommendation(
+            category="Settlement",
+            text=(f"Estimated immediate settlement ~{params.settlement_mm:.0f} mm for the "
+                  "trial footing may exceed typical 25 mm tolerance — widen the footing, "
+                  "reduce bearing pressure, or improve the ground.")))
+
+    # Frost / founding depth
+    if climate and (climate.frost_depth_m or 0) >= 0.3:
+        recs.append(Recommendation(
+            category="Frost protection",
+            text=(f"Estimated frost penetration ~{climate.frost_depth_m:.2f} m "
+                  f"(freezing index ~{climate.freezing_degree_days:.0f} degC-days). Found "
+                  f"footings at least {params.min_founding_depth_m:.2f} m below grade, "
+                  "below the frost line.")))
+
+    # Seismic site class amplification
+    if params.seismic_site_class and params.seismic_site_class.startswith("E") and \
+            hz["Seismicity"].level in ("Moderate", "High", "Very High"):
+        recs.append(Recommendation(
+            category="Site amplification",
+            text=(f"Soft-soil site class ({params.seismic_site_class}, Vs30 proxy "
+                  f"~{params.vs30_proxy_mps:.0f} m/s) can amplify ground motion — confirm "
+                  "Vs30 by measurement and apply the correct spectral site factors.")))
+
+    # Wet climate drainage
+    if climate and climate.wetness_class in ("Wet", "Very wet"):
+        recs.append(Recommendation(
+            category="Drainage",
+            text=(f"{climate.wetness_class} climate (~{climate.annual_precip_mm:.0f} mm/yr): "
+                  "design robust surface and subsurface drainage, erosion control, and "
+                  "waterproofing; expect a shallow/variable water table.")))
 
     # Always: site investigation
     recs.append(Recommendation(
