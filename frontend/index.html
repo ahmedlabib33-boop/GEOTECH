@@ -77,8 +77,23 @@
       <div id="results" class="results" hidden></div>
 
       <div id="actions" class="actions" hidden>
+        <button id="saveBtn" class="secondary">💾 Save this site</button>
         <button id="pdfBtn" class="secondary">⬇ Download PDF report</button>
       </div>
+
+      <div id="savedCard" class="card" hidden>
+        <div class="saved-head">
+          <h2>📂 Saved sites (<span id="savedCount">0</span>)</h2>
+          <button id="clearSaved" class="link-btn" title="Remove all saved sites">Clear all</button>
+        </div>
+        <div id="savedList" class="saved-list"></div>
+        <div class="saved-actions">
+          <button id="compareBtn" class="secondary">⚖️ Compare selected</button>
+          <button id="exportCsvBtn" class="link-btn">Export CSV</button>
+        </div>
+      </div>
+
+      <div id="compareWrap" class="results" hidden></div>
 
       <p class="disclaimer">
         Automated <b>preliminary</b> desk study from open remote-sensing data

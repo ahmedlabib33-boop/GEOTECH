@@ -445,4 +445,145 @@ function render(a) {
   const res = $("results");
   res.innerHTML = html;
   res.hidden = false;
+  lastAssessment = a;
+  if ($("saveBtn")) $("saveBtn").disabled = false;
 }
+
+// ---- Save & compare multiple sites (localStorage) ------------------------
+const SAVE_KEY = "geotech_sites_v1";
+let lastAssessment = null;
+const savedGroup = L.layerGroup().addTo(map);
+
+function loadSaved() {
+  try { return JSON.parse(localStorage.getItem(SAVE_KEY) || "[]"); }
+  catch (e) { return []; }
+}
+function storeSaved(arr) {
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(arr)); } catch (e) {}
+}
+const suitColor = (s) => s == null ? "#789" : s >= 75 ? "#2e7d32"
+  : s >= 55 ? "#f9a825" : s >= 35 ? "#ef6c00" : "#c62828";
+
+function saveCurrent() {
+  if (!lastAssessment) return;
+  const a = lastAssessment;
+  const arr = loadSaved();
+  const name = (a.project_name && a.project_name !== "Untitled Site")
+    ? a.project_name : `${a.location.lat.toFixed(3)}, ${a.location.lon.toFixed(3)}`;
+  arr.push({
+    id: "s" + Date.now(), name,
+    lat: a.location.lat, lon: a.location.lon,
+    saved: new Date().toISOString().slice(0, 16).replace("T", " "),
+    a,
+  });
+  storeSaved(arr);
+  renderSaved();
+}
+
+function removeSaved(id) {
+  storeSaved(loadSaved().filter((s) => s.id !== id));
+  renderSaved();
+  $("compareWrap").hidden = true;
+}
+
+function recenterSaved(s) {
+  setSite(s.lat, s.lon, true);
+  if (s.a.project_name) $("projectName").value = s.a.project_name;
+}
+
+function renderSaved() {
+  const arr = loadSaved();
+  $("savedCard").hidden = arr.length === 0;
+  $("savedCount").textContent = arr.length;
+  savedGroup.clearLayers();
+  const rows = arr.map((s) => {
+    const sc = s.a.suitability ? s.a.suitability.score : null;
+    L.circleMarker([s.lat, s.lon], { radius: 6, color: "#fff", weight: 1,
+      fillColor: suitColor(sc), fillOpacity: 0.95 })
+      .bindTooltip(`${s.name}${sc != null ? " · " + sc + "/100" : ""}`).addTo(savedGroup);
+    return `<label class="saved-row">
+      <input type="checkbox" class="saved-chk" value="${s.id}" />
+      <span class="saved-dot" style="background:${suitColor(sc)}"></span>
+      <span class="saved-name" data-id="${s.id}">${esc(s.name)}</span>
+      <span class="saved-score">${sc != null ? sc : "—"}</span>
+      <button class="saved-del" data-id="${s.id}" title="Remove">✕</button>
+    </label>`;
+  }).join("");
+  $("savedList").innerHTML = rows;
+  $("savedList").querySelectorAll(".saved-name").forEach((el) =>
+    el.onclick = () => recenterSaved(loadSaved().find((s) => s.id === el.dataset.id)));
+  $("savedList").querySelectorAll(".saved-del").forEach((el) =>
+    el.onclick = () => removeSaved(el.dataset.id));
+}
+
+function selectedSites() {
+  const ids = [...document.querySelectorAll(".saved-chk:checked")].map((c) => c.value);
+  const arr = loadSaved();
+  return arr.filter((s) => ids.includes(s.id));
+}
+
+function hz(a, name) {
+  const h = (a.hazards || []).find((x) => x.name === name);
+  return h ? h.level : "—";
+}
+
+function compareSites() {
+  let sites = selectedSites();
+  if (sites.length < 1) sites = loadSaved();          // default: compare all
+  if (sites.length < 2) {
+    $("compareWrap").innerHTML = `<div class="warn">Select at least two saved sites (tick the boxes) to compare.</div>`;
+    $("compareWrap").hidden = false;
+    return;
+  }
+  const hazNames = [...new Set(sites.flatMap((s) => (s.a.hazards || []).map((h) => h.name)))];
+  const num = (s, f) => { const p = s.a.parameters || {}; return p[f] != null ? p[f] : "—"; };
+  const rowDefs = [
+    ["Suitability", (s) => s.a.suitability ? `${s.a.suitability.score}/100 ${s.a.suitability.rating}` : "—"],
+    ["Net allowable bearing (kPa)", (s) => num(s, "allowable_bearing_kpa")],
+    ["Settlement (mm)", (s) => num(s, "settlement_mm")],
+    ["Min founding depth (m)", (s) => num(s, "min_founding_depth_m")],
+    ["Seismic site class", (s) => num(s, "seismic_site_class")],
+    ["Basis", (s) => (s.a.parameters && s.a.parameters.data_basis === "borehole") ? "Measured" : "Model"],
+    ["Recommended foundation", (s) => num(s, "recommended_foundation")],
+  ];
+  let h = `<h3>⚖️ Site comparison (${sites.length})</h3><div class="cmp-scroll"><table class="cmp">`;
+  h += `<tr><th>Metric</th>${sites.map((s) => `<th>${esc(s.name)}</th>`).join("")}</tr>`;
+  for (const [label, fn] of rowDefs)
+    h += `<tr><td class="cmp-m">${label}</td>${sites.map((s) => `<td>${esc(fn(s))}</td>`).join("")}</tr>`;
+  for (const name of hazNames)
+    h += `<tr><td class="cmp-m">${esc(name)}</td>${sites.map((s) =>
+      `<td><span class="${cls(hz(s.a, name))}">${esc(hz(s.a, name))}</span></td>`).join("")}</tr>`;
+  h += `</table></div>`;
+  // Highlight the most suitable site.
+  const best = sites.reduce((b, s) => (s.a.suitability && (!b.a.suitability || s.a.suitability.score > b.a.suitability.score)) ? s : b, sites[0]);
+  if (best.a.suitability)
+    h += `<div class="bh-note">🏆 Highest suitability: <b>${esc(best.name)}</b> (${best.a.suitability.score}/100, ${esc(best.a.suitability.rating)}).</div>`;
+  $("compareWrap").innerHTML = h;
+  $("compareWrap").hidden = false;
+}
+
+function exportCsv() {
+  const arr = loadSaved();
+  if (!arr.length) return;
+  const cols = ["name", "lat", "lon", "suitability", "rating", "bearing_kpa",
+    "settlement_mm", "min_depth_m", "basis"];
+  const lines = [cols.join(",")];
+  for (const s of arr) {
+    const p = s.a.parameters || {}, su = s.a.suitability || {};
+    const row = [s.name, s.lat, s.lon, su.score ?? "", su.rating ?? "",
+      p.allowable_bearing_kpa ?? "", p.settlement_mm ?? "", p.min_founding_depth_m ?? "",
+      p.data_basis === "borehole" ? "measured" : "model"];
+    lines.push(row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(","));
+  }
+  const blob = new Blob([lines.join("\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url; link.download = "geotech_sites.csv"; link.click();
+  URL.revokeObjectURL(url);
+}
+
+$("saveBtn").onclick = saveCurrent;
+$("compareBtn").onclick = compareSites;
+$("exportCsvBtn").onclick = exportCsv;
+$("clearSaved").onclick = () => { if (confirm("Remove all saved sites?")) { storeSaved([]); renderSaved(); $("compareWrap").hidden = true; } };
+renderSaved();

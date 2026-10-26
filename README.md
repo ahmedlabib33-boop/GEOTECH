@@ -62,6 +62,15 @@ with no internet.
 - **Recommendations** — foundation type, settlement, frost, drainage, slope,
   seismic design, and the mandatory ground-investigation next step.
 
+## Save &amp; compare multiple sites
+
+After an assessment, click **Save this site** to store it in the browser. Saved
+sites appear as colour-coded markers on the map (by suitability) and in a
+**Saved sites** list; tick two or more and hit **Compare selected** for a
+side-by-side table (suitability, bearing, settlement, site class, every hazard),
+with the most suitable site highlighted. **Export CSV** downloads the set.
+Storage is local to the browser (no login); nothing is uploaded.
+
 ## Accuracy features
 
 - **Soil uncertainty** — SoilGrids is queried for the **median (Q0.5) and the
