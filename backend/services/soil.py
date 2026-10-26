@@ -6,7 +6,6 @@ present and apply the documented conversions.
 """
 from __future__ import annotations
 
-import asyncio
 from typing import Optional
 
 import httpx
@@ -57,37 +56,11 @@ def _convert(prop: str, raw_target: Optional[float]) -> Optional[float]:
     return raw_target           # clay/sand/silt/cfvo already %, phh2o already pH
 
 
-def _has_texture(profile: SoilProfile) -> bool:
-    return any(l.usda_texture for l in profile.layers)
-
-
 async def fetch_soil(client: httpx.AsyncClient, lat: float, lon: float) -> SoilProfile:
-    """Return the soil profile at the point, or — if that exact 250 m pixel has
-    no SoilGrids data (urban/road/nodata) — the nearest neighbouring pixel that
-    does (sampled concurrently), noting the offset. No synthetic fallback."""
-    d = 0.0025  # ~280 m
-    pts = [(lat, lon, 0.0),
-           (lat + d, lon, 280.0), (lat - d, lon, 280.0),
-           (lat, lon + d, 280.0), (lat, lon - d, 280.0)]
-    results = await asyncio.gather(
-        *[_query_point(client, a, b) for a, b, _ in pts], return_exceptions=True)
-
-    best, best_dist = None, None
-    for (a, b, dist), res in zip(pts, results):
-        if isinstance(res, SoilProfile) and _has_texture(res):
-            if best is None or dist < best_dist:
-                best, best_dist = res, dist
-    if best is None:
-        center = results[0] if isinstance(results[0], SoilProfile) else \
-            SoilProfile(source="ISRIC SoilGrids v2.0 (250 m)")
-        return center
-    if best_dist:
-        best.note = (f"Exact-point pixel had no data; soil sampled from the nearest "
-                     f"SoilGrids pixel ~{int(best_dist)} m away.")
-    return best
-
-
-async def _query_point(client: httpx.AsyncClient, lat: float, lon: float) -> SoilProfile:
+    """Soil profile at the point from SoilGrids. A single query — SoilGrids is
+    slow (~30-45 s) and times out under concurrency, so we do not fan out. If the
+    exact 250 m pixel has no data (urban/road/nodata), the caller reports the
+    soil layer as unavailable; it is never synthesised."""
     # Request the median (Q0.5) and the 5th/95th percentiles so we can report
     # the prediction spread, plus mean for the non-texture properties.
     params = [("lon", lon), ("lat", lat)]
@@ -95,10 +68,10 @@ async def _query_point(client: httpx.AsyncClient, lat: float, lon: float) -> Soi
     params += [("property", p) for p in PROPERTIES]
     params += [("depth", d) for d in DEPTHS]
 
-    # SoilGrids is the core layer but is often slow; give it a dedicated timeout
-    # that still fits the function budget when several points run concurrently.
+    # SoilGrids is the core layer but is often slow; give it a long dedicated
+    # timeout (single attempt in the orchestrator keeps it within the budget).
     r = await client.get(SOILGRIDS, params=params,
-                         timeout=httpx.Timeout(connect=10.0, read=40.0, write=10.0, pool=10.0))
+                         timeout=httpx.Timeout(connect=10.0, read=50.0, write=10.0, pool=10.0))
     r.raise_for_status()
     layers_meta = (r.json().get("properties") or {}).get("layers", [])
 
