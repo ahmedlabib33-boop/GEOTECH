@@ -54,6 +54,22 @@ async def _resolve_location(req: AssessRequest) -> Location:
     raise ValueError("Provide either lat/lon or a place name.")
 
 
+async def _hydro_then_logistics(client, lat: float, lon: float):
+    """Hydrology and logistics both hit the public OSM Overpass API; running
+    them concurrently from one IP makes the instance reject both. Run them
+    sequentially (each catching its own error) so neither starves the other."""
+    try:
+        hydro = await with_retry(lambda: hydro_svc.fetch_hydrology(client, lat, lon))
+    except Exception as e:
+        hydro = e
+    try:
+        logi = await with_retry(lambda: logistics_svc.fetch_logistics(client, lat, lon),
+                                attempts=1)
+    except Exception as e:
+        logi = e
+    return hydro, logi
+
+
 async def _gather_live(lat: float, lon: float):
     """Fetch terrain, soil, seismic etc. concurrently, each with retry; tolerate
     partial failure (a source that still fails degrades to sample data)."""
@@ -66,11 +82,11 @@ async def _gather_live(lat: float, lon: float):
             with_retry(lambda: seismic_svc.fetch_seismic(client, lat, lon)),
             with_retry(lambda: climate_svc.fetch_climate(client, lat, lon)),
             with_retry(lambda: veg_svc.fetch_vegetation(client, lat, lon)),
-            with_retry(lambda: hydro_svc.fetch_hydrology(client, lat, lon)),
+            # Hydrology + logistics share Overpass, so they run one after the other.
+            _hydro_then_logistics(client, lat, lon),
             # Wind/snow pulls a long hourly snow series; one attempt keeps the
             # whole gather within the 60 s function budget (like soil).
             with_retry(lambda: windsnow_svc.fetch_windsnow(client, lat, lon), attempts=1),
-            with_retry(lambda: logistics_svc.fetch_logistics(client, lat, lon), attempts=1),
             return_exceptions=True,
         )
     return results
@@ -83,11 +99,17 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
 
     data_mode = "live"
     if True:
-        (t_res, s_res, q_res, c_res, v_res, h_res, ws_res, lo_res), sentinel, ground_motion = \
+        (t_res, s_res, q_res, c_res, v_res, hl_res, ws_res), sentinel, ground_motion = \
             await asyncio.gather(
                 _gather_live(lat, lon),
                 sh_svc.fetch_sentinel(lat, lon),
                 gm_svc.fetch_ground_motion(lat, lon, req.insar_velocity_mm_yr))
+        # _hydro_then_logistics returns a (hydrology, logistics) pair; if the
+        # whole coroutine itself errored, treat both as failed.
+        if isinstance(hl_res, tuple):
+            h_res, lo_res = hl_res
+        else:
+            h_res = lo_res = hl_res
 
         # REAL-ONLY: a failed/unavailable source is reported as unavailable and
         # is NEVER replaced with synthetic sample data.
