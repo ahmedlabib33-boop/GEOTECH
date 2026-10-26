@@ -272,6 +272,6 @@ class Assessment(BaseModel):
     recommendations: list[Recommendation] = Field(default_factory=list)
     commentary: Optional[str] = None  # optional LLM engineering commentary
     commentary_model: Optional[str] = None
-    data_mode: str = "live"  # "live" or "demo"
+    data_mode: str = "live"  # always "live" (real-only); field kept for compatibility
     warnings: list[str] = Field(default_factory=list)
     disclaimer: str = ""

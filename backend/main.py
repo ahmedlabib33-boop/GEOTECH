@@ -19,8 +19,6 @@ from .services.sitemap import site_image
 class CompareRequest(BaseModel):
     sites: list[Assessment]
 
-# Global offline switch: set GEOTECH_DEMO=1 to force sample data everywhere.
-FORCE_DEMO = os.environ.get("GEOTECH_DEMO", "").lower() in ("1", "true", "yes")
 
 FRONTEND_DIR = Path(__file__).resolve().parent.parent / "frontend"
 
@@ -35,19 +33,15 @@ app = FastAPI(
 @app.get("/api/health")
 async def health():
     from .services.sentinelhub import available as sh_available
-    return {"status": "ok", "force_demo": FORCE_DEMO,
+    return {"status": "ok",
             "ai_available": bool(os.environ.get("ANTHROPIC_API_KEY")),
             "sentinelhub_available": sh_available()}
 
 
-def _demo_flag(demo: bool | None) -> bool:
-    return FORCE_DEMO or bool(demo)
-
-
 @app.post("/api/assess", response_model=Assessment)
-async def assess(req: AssessRequest, demo: bool = False, ai: bool = False):
+async def assess(req: AssessRequest, ai: bool = False):
     try:
-        return await run_assessment(req, demo_mode=_demo_flag(demo), ai_commentary=ai)
+        return await run_assessment(req, ai_commentary=ai)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:  # pragma: no cover - defensive
@@ -55,18 +49,17 @@ async def assess(req: AssessRequest, demo: bool = False, ai: bool = False):
 
 
 @app.post("/api/report.pdf")
-async def report_pdf(req: AssessRequest, demo: bool = False, ai: bool = False):
+async def report_pdf(req: AssessRequest, ai: bool = False):
     try:
-        assessment = await run_assessment(req, demo_mode=_demo_flag(demo), ai_commentary=ai)
+        assessment = await run_assessment(req, ai_commentary=ai)
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    # Fetch a satellite locator image (best-effort; skip in demo/offline).
+    # Fetch a satellite locator image (best-effort).
     img = None
-    if assessment.data_mode == "live":
-        try:
-            img = await site_image(assessment.location.lat, assessment.location.lon)
-        except Exception:
-            img = None
+    try:
+        img = await site_image(assessment.location.lat, assessment.location.lon)
+    except Exception:
+        img = None
     pdf = build_pdf(assessment, img)
     safe = "".join(c if c.isalnum() else "_" for c in assessment.project_name)[:40] or "site"
     return Response(

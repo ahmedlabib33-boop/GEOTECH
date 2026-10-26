@@ -290,13 +290,13 @@ function payload() {
 $("runBtn").onclick = async () => {
   const body = payload();
   if (!body) { setErr("Pick a location first (click the map or search)."); return; }
-  const demo = $("demo").checked, ai = $("ai").checked;
+  const ai = $("ai").checked;
   $("runBtn").disabled = true;
   $("status").className = "status";
-  $("status").textContent = ai ? "Fetching data & writing AI commentary…"
-    : "Fetching satellite & geospatial data…";
+  $("status").textContent = ai ? "Fetching live data & writing AI commentary…"
+    : "Fetching live satellite & geospatial data…";
   try {
-    const r = await fetch(`/api/assess?demo=${demo}&ai=${ai}`, {
+    const r = await fetch(`/api/assess?ai=${ai}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
     });
@@ -304,7 +304,7 @@ $("runBtn").onclick = async () => {
     const a = await r.json();
     render(a);
     $("status").textContent = "";
-    lastPayload = { body, demo, ai };
+    lastPayload = { body, ai };
     $("actions").hidden = false;
   } catch (err) {
     setErr("Assessment failed: " + err.message);
@@ -321,7 +321,7 @@ $("pdfBtn").onclick = async () => {
   if (!lastPayload) return;
   $("pdfBtn").textContent = "Building PDF…";
   try {
-    const r = await fetch(`/api/report.pdf?demo=${lastPayload.demo}&ai=${lastPayload.ai}`, {
+    const r = await fetch(`/api/report.pdf?ai=${lastPayload.ai}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify(lastPayload.body),
     });
@@ -426,11 +426,9 @@ function bearingChart(curve) {
 
 // Section heading with a data-provenance badge + source link.
 // kind: measured | modelled | estimated
-let DEMO_MODE = false;
 function head(emoji, title, kind, name, url) {
-  if (DEMO_MODE) { kind = "sample"; name = "demo sample"; url = null; }
-  const label = { measured: "Measured", modelled: "Modelled", estimated: "Estimated",
-    sample: "Sample" }[kind] || kind;
+  const label = { measured: "Measured", modelled: "Modelled",
+    estimated: "Estimated" }[kind] || kind;
   const src = url
     ? `<a class="src-link" href="${url}" target="_blank" rel="noopener">${esc(name)} ↗</a>`
     : `<span class="src-link">${esc(name)}</span>`;
@@ -440,9 +438,8 @@ function head(emoji, title, kind, name, url) {
 
 function render(a) {
   const badge = $("modeBadge");
-  DEMO_MODE = a.data_mode === "demo";
-  badge.textContent = a.data_mode === "live" ? "LIVE DATA" : "DEMO DATA";
-  badge.className = "mode-badge " + a.data_mode;
+  badge.textContent = "LIVE DATA";
+  badge.className = "mode-badge live";
 
   const t = a.terrain, p = a.parameters, s = a.seismic, cl = a.climate || {},
     vg = a.vegetation || {}, hy = a.hydrology || {};
@@ -488,7 +485,7 @@ function render(a) {
     ["Dominant", `${esc(a.soil.dominant_usda_texture)} (${esc(a.soil.dominant_uscs_group)})`],
     ["Topsoil clay (5–95%)", clayStr],
     ["Model confidence", a.soil.texture_confidence || "—"],
-    ["Source", a.soil.source && a.soil.source.includes("DEMO") ? "sample" : "SoilGrids"],
+    ["Source", a.soil.source || "SoilGrids"],
   ]) + `</div></div>`;
 
   const measured = p.data_basis === "borehole";

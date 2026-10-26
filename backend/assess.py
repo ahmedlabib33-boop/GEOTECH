@@ -1,9 +1,8 @@
 """Orchestrator: gather remote-sensing data and build a full Assessment.
 
 Live mode fetches the three data domains (terrain, soil, seismic) concurrently.
-If any source fails it is recorded as a warning and the demo fallback fills that
-domain so a report can still be produced. Full offline/demo mode bypasses the
-network entirely.
+If any source fails it is recorded as a warning and that domain is reported as
+"unavailable" — it is NEVER replaced with synthetic data (real-only).
 """
 from __future__ import annotations
 
@@ -18,7 +17,6 @@ from .services import (geocoding, terrain as terrain_svc, soil as soil_svc,
                        seismic as seismic_svc, climate as climate_svc,
                        vegetation as veg_svc, hydrology as hydro_svc,
                        sentinelhub as sh_svc, groundmotion as gm_svc)
-from .services import demo
 from .engineering.parameters import build_parameters
 from .engineering.borehole import build_parameters_from_borehole, has_usable_data
 from .engineering.hazards import all_hazards
@@ -36,21 +34,11 @@ DISCLAIMER = (
 )
 
 
-async def _resolve_location(req: AssessRequest, demo_mode: bool) -> Location:
+async def _resolve_location(req: AssessRequest) -> Location:
     if req.lat is not None and req.lon is not None:
-        if demo_mode:
-            return demo.demo_location(req.lat, req.lon)
         async with new_client() as client:
             return await geocoding.reverse(client, req.lat, req.lon)
     if req.place:
-        if demo_mode:
-            # Can't geocode offline; synthesise a deterministic coordinate.
-            h = abs(hash(req.place))
-            lat = (h % 1400) / 10.0 - 60.0
-            lon = (h // 1400 % 3600) / 10.0 - 180.0
-            loc = demo.demo_location(lat, lon)
-            loc.display_name = f"{req.place} (demo coordinates)"
-            return loc
         async with new_client() as client:
             loc = await geocoding.geocode(client, req.place)
             if loc is None:
@@ -75,31 +63,13 @@ async def _gather_live(lat: float, lon: float):
     return results
 
 
-async def run_assessment(req: AssessRequest, demo_mode: bool = False,
-                         ai_commentary: bool = False) -> Assessment:
+async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Assessment:
     warnings: list[str] = []
-    location = await _resolve_location(req, demo_mode)
+    location = await _resolve_location(req)
     lat, lon = location.lat, location.lon
 
-    if demo_mode:
-        terrain = demo.demo_terrain(lat, lon)
-        soil = demo.demo_soil(lat, lon)
-        seismic = demo.demo_seismic(lat, lon)
-        climate = demo.demo_climate(lat, lon)
-        vegetation = demo.demo_vegetation(lat, lon)
-        hydrology = demo.demo_hydrology(lat, lon, terrain)
-        sentinel = None
-        ground_motion = (gm_svc and demo.demo_ground_motion(lat, lon))
-        if req.insar_velocity_mm_yr is not None:
-            from .services.groundmotion import classify, _egms_url
-            dirn, note = classify(req.insar_velocity_mm_yr)
-            from .schemas import GroundMotion as _GM
-            ground_motion = _GM(velocity_mm_yr=req.insar_velocity_mm_yr, direction=dirn,
-                                note=note, source="User-supplied InSAR velocity (measured)",
-                                egms_viewer_url=_egms_url(lat, lon))
-        data_mode = "demo"
-    else:
-        data_mode = "live"
+    data_mode = "live"
+    if True:
         (t_res, s_res, q_res, c_res, v_res, h_res), sentinel, ground_motion = \
             await asyncio.gather(
                 _gather_live(lat, lon),

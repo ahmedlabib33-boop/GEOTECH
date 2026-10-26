@@ -1,4 +1,4 @@
-"""Endpoint-level tests via FastAPI TestClient (demo mode, no network)."""
+"""Endpoint-level tests via FastAPI TestClient (offline fixtures)."""
 import asyncio
 
 import pytest
@@ -23,45 +23,45 @@ def test_index_served():
 
 
 def test_assess_demo_ok():
-    r = client.post("/api/assess?demo=true",
+    r = client.post("/api/assess",
                     json={"lat": 30.04, "lon": 31.23, "project_name": "API Test"})
     assert r.status_code == 200
     a = r.json()
-    assert a["data_mode"] == "demo"
+    assert a["data_mode"] == "live"
     assert a["suitability"]["rating"] in ("Favourable", "Marginal", "Challenging", "Severe")
     assert a["parameters"]["allowable_bearing_kpa"] is not None
 
 
 def test_assess_missing_coords_400():
-    assert client.post("/api/assess?demo=true", json={}).status_code == 400
+    assert client.post("/api/assess", json={}).status_code == 400
 
 
 def test_assess_bad_lat_422():
-    assert client.post("/api/assess?demo=true", json={"lat": 200, "lon": 0}).status_code == 422
+    assert client.post("/api/assess", json={"lat": 200, "lon": 0}).status_code == 422
 
 
 def test_report_pdf_demo():
-    r = client.post("/api/report.pdf?demo=true", json={"lat": 35, "lon": 25})
+    r = client.post("/api/report.pdf", json={"lat": 35, "lon": 25})
     assert r.status_code == 200
     assert r.content[:4] == b"%PDF"
     assert r.headers["content-type"] == "application/pdf"
 
 
 def test_compare_pdf():
-    a = client.post("/api/assess?demo=true", json={"lat": 35, "lon": 25, "project_name": "A"}).json()
-    b = client.post("/api/assess?demo=true", json={"lat": -20, "lon": 140, "project_name": "B"}).json()
+    a = client.post("/api/assess", json={"lat": 35, "lon": 25, "project_name": "A"}).json()
+    b = client.post("/api/assess", json={"lat": -20, "lon": 140, "project_name": "B"}).json()
     r = client.post("/api/compare.pdf", json={"sites": [a, b]})
     assert r.status_code == 200
     assert r.content[:4] == b"%PDF"
 
 
 def test_compare_pdf_needs_two():
-    a = client.post("/api/assess?demo=true", json={"lat": 35, "lon": 25}).json()
+    a = client.post("/api/assess", json={"lat": 35, "lon": 25}).json()
     assert client.post("/api/compare.pdf", json={"sites": [a]}).status_code == 400
 
 
 def test_borehole_override_via_api():
-    r = client.post("/api/assess?demo=true", json={
+    r = client.post("/api/assess", json={
         "lat": 1.35, "lon": 103.8, "foundation_depth_m": 1.5,
         "borehole": {"groundwater_depth_m": 2.0, "layers": [
             {"top_m": 0, "bottom_m": 8, "description": "dense SAND", "uscs": "SP", "spt_n": 30}]}})

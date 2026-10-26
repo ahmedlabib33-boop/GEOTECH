@@ -1,4 +1,4 @@
-"""End-to-end tests of the assessment orchestrator in demo mode (no network)."""
+"""End-to-end tests of the assessment orchestrator (offline fixtures)."""
 import asyncio
 
 from backend.schemas import AssessRequest, Assessment
@@ -7,13 +7,13 @@ from backend.report.pdf import build_pdf
 
 
 def _run(req):
-    return asyncio.run(run_assessment(req, demo_mode=True))
+    return asyncio.run(run_assessment(req))
 
 
 def test_demo_assessment_complete():
     a = _run(AssessRequest(lat=30.0444, lon=31.2357, project_name="Cairo Test"))
     assert isinstance(a, Assessment)
-    assert a.data_mode == "demo"
+    assert a.data_mode == "live"
     assert a.project_name == "Cairo Test"
     assert a.soil.layers, "expected soil layers"
     assert a.parameters.allowable_bearing_kpa is not None

@@ -34,9 +34,10 @@ a site-specific investigation by a qualified geotechnical engineer.
 | Geocoding | [OSM Nominatim](https://nominatim.org/) | place name ⇄ coordinates |
 | Satellite basemap | Esri World Imagery tiles | with street / topographic layers |
 
-All are free and keyless. Live mode is the default; **demo mode** (a checkbox,
-or `GEOTECH_DEMO=1`) substitutes clearly-labelled sample data so the app runs
-with no internet.
+All are free and keyless. The app is **real-only**: a source that fails or has
+no coverage is reported as *unavailable* and is never replaced with synthetic
+data. Parameters are computed only from real soil (or a measured borehole);
+hazards without real inputs are marked *Insufficient data*.
 
 ## Engineering performed
 
@@ -181,17 +182,17 @@ uvicorn backend.main:app --reload   # or: ./run.sh
 ```
 
 Click the map (or search a place), set the project name and trial footing size,
-then **Generate assessment** and **Download PDF report**.
-
-To try it with no internet: tick **Demo mode**, or
-`GEOTECH_DEMO=1 uvicorn backend.main:app`.
+then **Generate assessment** and **Download PDF report**. Live internet access
+is required (the app fetches real data and never fabricates).
 
 ## API
 
 | Method | Path | Purpose |
 |--------|------|---------|
-| `POST` | `/api/assess?demo=false` | JSON assessment for a location |
-| `POST` | `/api/report.pdf?demo=false` | PDF report download |
+| `POST` | `/api/assess?ai=false` | JSON assessment for a location |
+| `POST` | `/api/report.pdf?ai=false` | PDF report download |
+| `POST` | `/api/compare.pdf` | multi-site comparison PDF |
+| `GET`  | `/api/sitemap.png` | live satellite screenshot |
 | `GET`  | `/api/health` | liveness probe |
 
 Request body:
@@ -207,8 +208,8 @@ Request body:
 ```
 backend/
   schemas.py            Pydantic models
-  assess.py             orchestrator (concurrent fetch + graceful fallback)
-  services/             data sources: terrain, soil, seismic, geocoding, demo
+  assess.py             orchestrator (concurrent fetch, real-only)
+  services/             data sources: terrain, soil, seismic, geocoding, …
   engineering/          classification, bearing, hazards, recommendations
   report/pdf.py         ReportLab PDF generator
   main.py               FastAPI app

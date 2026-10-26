@@ -18,8 +18,7 @@ def test_deg2num_known_point():
 
 def _demo():
     import asyncio
-    return asyncio.run(run_assessment(AssessRequest(lat=30, lon=31, project_name="t"),
-                                      demo_mode=True))
+    return asyncio.run(run_assessment(AssessRequest(lat=30, lon=31, project_name="t")))
 
 
 def test_pdf_without_image():

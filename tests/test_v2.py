@@ -66,7 +66,7 @@ def test_insar_velocity_adds_hazard():
     from backend.schemas import AssessRequest
     from backend.assess import run_assessment
     a = asyncio.run(run_assessment(
-        AssessRequest(lat=30, lon=31, insar_velocity_mm_yr=-35.0), demo_mode=True))
+        AssessRequest(lat=30, lon=31, insar_velocity_mm_yr=-35.0)))
     assert a.ground_motion is not None
     assert a.ground_motion.direction == "subsidence"
     gm = [h for h in a.hazards if h.name == "Ground motion / subsidence"]

@@ -377,7 +377,6 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
 
     # Data sources & provenance
     story.append(Paragraph("Data Sources &amp; Provenance", ss["H2"]))
-    live = a.data_mode == "live"
     prov = [
         ("Terrain / elevation", "Measured", "NASA SRTM 30 m (OpenTopoData)"),
         ("Soil properties", "Modelled", "ISRIC SoilGrids 250 m (median + 5-95%)"),
@@ -395,11 +394,10 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
     for layer, kind, src in prov:
         if layer.startswith("Parameters") and measured_params:
             kind, src = "Measured", "User borehole log (SPT/Meyerhof)"
-        shown_kind = "Sample (demo)" if not live else kind
-        col = colors.HexColor("#c62828") if not live else _pc[kind]
+        col = _pc[kind]
         prows.append([
             Paragraph(layer, ss["Cell"]),
-            Paragraph(f'<font color="#{col.hexval()[2:]}"><b>{shown_kind}</b></font>', ss["Cell"]),
+            Paragraph(f'<font color="#{col.hexval()[2:]}"><b>{kind}</b></font>', ss["Cell"]),
             Paragraph(src, ss["Cell"]),
         ])
     pt = Table(prows, colWidths=[46 * mm, 32 * mm, 100 * mm], repeatRows=1)
@@ -415,9 +413,9 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
     story.append(Paragraph(
         "<b>Measured</b> = direct satellite/instrument reading. <b>Modelled</b> = global "
         "model prediction (real science, but an estimate — not a site measurement). "
-        "<b>Estimated</b> = engineering calculation from the above. "
-        + ("All values are LIVE readings fetched at the site coordinates."
-           if live else "NOTE: this run used DEMO sample data, not live readings."),
+        "<b>Estimated</b> = engineering calculation from the above. All values "
+        "are live readings fetched at the site coordinates; any unavailable "
+        "source is reported as such and never substituted.",
         ss["Disc"]))
 
     # AI commentary (optional)
