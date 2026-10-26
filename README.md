@@ -71,6 +71,23 @@ with no internet.
 - **Climate normals** — rainfall/temperature are **averaged over the last 5 full
   years** (not a single year) for a more representative normal.
 
+## Borehole / measured-data override (true accuracy)
+
+Satellite data is a *screen*; measured ground data is the truth. Expand
+**"Borehole / measured ground data"** in the UI and enter your real strata
+(top/base depth, description, USCS, SPT N) and groundwater depth. When present,
+the app computes the foundation parameters from **your data** instead of the
+satellite soil model:
+
+- Sand: friction angle from SPT (Wolff 1989); allowable bearing by Meyerhof
+  (25 mm settlement) with a water-table correction.
+- Clay: undrained strength `cu ≈ 5·N`; bearing via `Nc` (φ=0), with a
+  consolidation-settlement note.
+- Measured groundwater depth feeds the liquefaction screening.
+
+The report then marks these parameters **"Measured — from borehole"** and shows
+the borehole log. API: add a `borehole` object to the `/api/assess` body.
+
 ## Optional AI engineering commentary
 
 Tick **"AI engineering commentary"** (or `?ai=true`) to add an LLM-written

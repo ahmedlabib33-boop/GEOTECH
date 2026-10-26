@@ -13,6 +13,24 @@ from pydantic import BaseModel, Field
 # --------------------------------------------------------------------------- #
 # Request
 # --------------------------------------------------------------------------- #
+class BoreholeLayer(BaseModel):
+    """One stratum from a real borehole / trial pit / CPT log."""
+
+    top_m: float = Field(ge=0, le=200)
+    bottom_m: float = Field(gt=0, le=200)
+    description: Optional[str] = Field(None, description="e.g. 'stiff grey CLAY'")
+    uscs: Optional[str] = Field(None, description="USCS group, e.g. CL, SP, SM")
+    spt_n: Optional[int] = Field(None, ge=0, le=100, description="SPT N (blows/300mm)")
+
+
+class Borehole(BaseModel):
+    """User-supplied measured ground data that overrides the satellite estimate."""
+
+    layers: list[BoreholeLayer] = Field(default_factory=list)
+    groundwater_depth_m: Optional[float] = Field(None, ge=0, le=200)
+    reference: Optional[str] = Field(None, description="Log ID / investigation ref")
+
+
 class AssessRequest(BaseModel):
     """Incoming request for a site assessment.
 
@@ -29,6 +47,9 @@ class AssessRequest(BaseModel):
     )
     foundation_depth_m: float = Field(
         1.5, ge=0, le=30, description="Assumed founding depth Df (m) below grade"
+    )
+    borehole: Optional[Borehole] = Field(
+        None, description="Measured ground data; overrides the satellite soil estimate"
     )
 
 
@@ -164,6 +185,7 @@ class GeotechParameters(BaseModel):
     unit_weight_kn_m3: Optional[float] = None
     elastic_modulus_mpa: Optional[float] = None
     typical_spt_n: Optional[str] = None
+    data_basis: str = "satellite-model"  # or "borehole" (measured)
     allowable_bearing_kpa: Optional[float] = None
     ultimate_bearing_kpa: Optional[float] = None
     settlement_mm: Optional[float] = None
@@ -208,6 +230,7 @@ class Assessment(BaseModel):
     climate: Climate = Field(default_factory=Climate)
     vegetation: Vegetation = Field(default_factory=Vegetation)
     hydrology: Hydrology = Field(default_factory=Hydrology)
+    borehole: Optional[Borehole] = None
     parameters: GeotechParameters
     suitability: Optional[Suitability] = None
     hazards: list[HazardRating] = Field(default_factory=list)

@@ -19,6 +19,7 @@ from .services import (geocoding, terrain as terrain_svc, soil as soil_svc,
                        vegetation as veg_svc, hydrology as hydro_svc)
 from .services import demo
 from .engineering.parameters import build_parameters
+from .engineering.borehole import build_parameters_from_borehole, has_usable_data
 from .engineering.hazards import all_hazards
 from .engineering.recommendations import build_recommendations
 from .engineering.suitability import build_suitability
@@ -131,9 +132,19 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False,
             warnings.append(f"Hydrology source failed ({type(h_res).__name__}); using sample data.")
             hydrology = demo.demo_hydrology(lat, lon, terrain)
 
-    params = build_parameters(soil, terrain, climate,
-                              req.foundation_width_m, req.foundation_depth_m)
-    hazards = all_hazards(terrain, soil, seismic, climate, vegetation, hydrology)
+    gw_depth = None
+    if has_usable_data(req.borehole):
+        params = build_parameters_from_borehole(
+            req.borehole, req.foundation_width_m, req.foundation_depth_m)
+        gw_depth = req.borehole.groundwater_depth_m
+        warnings.append(
+            "Foundation parameters derived from the supplied BOREHOLE (measured data), "
+            "overriding the satellite soil estimate.")
+    else:
+        params = build_parameters(soil, terrain, climate,
+                                  req.foundation_width_m, req.foundation_depth_m)
+
+    hazards = all_hazards(terrain, soil, seismic, climate, vegetation, hydrology, gw_depth)
     suitability = build_suitability(hazards, params, terrain)
     recommendations = build_recommendations(terrain, soil, seismic, params, hazards,
                                             climate, vegetation, hydrology)
@@ -148,6 +159,7 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False,
         climate=climate,
         vegetation=vegetation,
         hydrology=hydrology,
+        borehole=req.borehole if has_usable_data(req.borehole) else None,
         parameters=params,
         suitability=suitability,
         hazards=hazards,

@@ -61,6 +61,34 @@ def test_flood_hazard_higher_near_water_lowland():
     assert low.name == "Flooding / inundation"
 
 
+def test_borehole_override_sand():
+    from backend.schemas import Borehole, BoreholeLayer
+    from backend.engineering.borehole import build_parameters_from_borehole, has_usable_data
+    bh = Borehole(layers=[
+        BoreholeLayer(top_m=0, bottom_m=1.5, description="loose SAND", uscs="SP", spt_n=8),
+        BoreholeLayer(top_m=1.5, bottom_m=6, description="dense SAND", uscs="SP", spt_n=35)],
+        groundwater_depth_m=4.0)
+    assert has_usable_data(bh)
+    p = build_parameters_from_borehole(bh, 2.0, 1.5)
+    assert p.data_basis == "borehole"
+    assert p.friction_angle_deg > 28           # dense sand founding layer
+    assert p.allowable_bearing_kpa > 0
+    assert p.bearing_curve
+
+
+def test_borehole_override_clay_is_weaker():
+    from backend.schemas import Borehole, BoreholeLayer
+    from backend.engineering.borehole import build_parameters_from_borehole
+    soft = build_parameters_from_borehole(
+        Borehole(layers=[BoreholeLayer(top_m=0, bottom_m=6, description="soft CLAY",
+                                       uscs="CL", spt_n=3)]), 2.0, 1.5)
+    stiff = build_parameters_from_borehole(
+        Borehole(layers=[BoreholeLayer(top_m=0, bottom_m=6, description="stiff CLAY",
+                                       uscs="CL", spt_n=20)]), 2.0, 1.5)
+    assert soft.allowable_bearing_kpa < stiff.allowable_bearing_kpa
+    assert soft.cohesion_kpa < stiff.cohesion_kpa
+
+
 def test_soil_confidence_from_spread():
     from backend.schemas import SoilProfile, SoilLayer
     from backend.services.soil import _assign_confidence

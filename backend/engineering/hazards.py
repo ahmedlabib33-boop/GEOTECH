@@ -85,7 +85,7 @@ def expansive_soil_hazard(soil: SoilProfile) -> HazardRating:
 
 
 def liquefaction_hazard(soil: SoilProfile, seismic: SeismicContext,
-                        terrain: Terrain) -> HazardRating:
+                        terrain: Terrain, gw_depth_m: Optional[float] = None) -> HazardRating:
     # Screening proxy: loose saturated sands/silts in low-lying, seismic areas.
     texture = (soil.dominant_usda_texture or "").lower()
     sandy = any(k in texture for k in ("sand", "silt", "loamy"))
@@ -93,11 +93,19 @@ def liquefaction_hazard(soil: SoilProfile, seismic: SeismicContext,
                 ((terrain.slope_deg or 99) < 3)
     seismic_score = min((seismic.max_magnitude or 0) / 8.0, 1.0)
     base = (0.45 if sandy else 0.1) + (0.2 if low_lying else 0.0)
+    # Measured shallow groundwater strongly increases liquefaction potential.
+    gw_txt = ""
+    if gw_depth_m is not None:
+        if gw_depth_m <= 3:
+            base += 0.25
+        elif gw_depth_m <= 6:
+            base += 0.12
+        gw_txt = f" Measured water table at {gw_depth_m:.1f} m."
     score = min(base * (0.4 + 0.6 * seismic_score), 1.0)
     rationale = (
         f"Soil texture {soil.dominant_usda_texture or 'unknown'}, "
         f"{'low-lying/flat' if low_lying else 'elevated/sloping'} terrain, "
-        f"max historical M{seismic.max_magnitude or 0:.1f}. Loose saturated "
+        f"max historical M{seismic.max_magnitude or 0:.1f}.{gw_txt} Loose saturated "
         "granular soils under strong shaking are liquefaction-prone."
     )
     return HazardRating(name="Liquefaction potential", level=_level(score),
@@ -154,11 +162,12 @@ def flood_hazard(terrain: Terrain, climate: Optional[Climate] = None,
 def all_hazards(terrain: Terrain, soil: SoilProfile, seismic: SeismicContext,
                 climate: Optional[Climate] = None,
                 vegetation: Optional[Vegetation] = None,
-                hydrology: Optional[Hydrology] = None) -> list[HazardRating]:
+                hydrology: Optional[Hydrology] = None,
+                gw_depth_m: Optional[float] = None) -> list[HazardRating]:
     return [
         flood_hazard(terrain, climate, hydrology),
         landslide_hazard(terrain, soil, climate, vegetation),
         seismic_hazard(seismic),
         expansive_soil_hazard(soil),
-        liquefaction_hazard(soil, seismic, terrain),
+        liquefaction_hazard(soil, seismic, terrain, gw_depth_m),
     ]

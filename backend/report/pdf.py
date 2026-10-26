@@ -145,9 +145,34 @@ def build_pdf(a: Assessment) -> bytes:
                            f"(approx. USCS {a.soil.dominant_uscs_group or 'n/a'})."
                            f"{conf} Source: {a.soil.source}.", ss["Disc"]))
 
+    # Borehole log (measured) — if supplied
+    if a.borehole and a.borehole.layers:
+        story.append(Paragraph("Borehole Log (measured, user-supplied)", ss["H2"]))
+        bhrows = [[Paragraph(f"<b>{h}</b>", ss["CellB"]) for h in
+                   ("Top m", "Base m", "Description", "USCS", "SPT N")]]
+        for l in a.borehole.layers:
+            bhrows.append([Paragraph(_s(l.top_m), ss["Cell"]), Paragraph(_s(l.bottom_m), ss["Cell"]),
+                           Paragraph(l.description or "-", ss["Cell"]),
+                           Paragraph(l.uscs or "-", ss["Cell"]), Paragraph(_s(l.spt_n), ss["Cell"])])
+        bt = Table(bhrows, colWidths=[20 * mm, 20 * mm, 90 * mm, 24 * mm, 24 * mm], repeatRows=1)
+        bt.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, 0), ACCENT),
+            ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+            ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#c9d4de")),
+            ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3)]))
+        story.append(bt)
+        if a.borehole.groundwater_depth_m is not None:
+            story.append(Spacer(1, 2))
+            story.append(Paragraph(
+                f"Measured groundwater depth: <b>{a.borehole.groundwater_depth_m} m</b>.", ss["Disc"]))
+
     # Parameters
     p = a.parameters
+    basis = ("<font color=\"#2e7d32\"><b>Measured — from borehole</b></font>"
+             if p.data_basis == "borehole"
+             else "<font color=\"#b8860b\">Estimated — from satellite soil model</font>")
     story.append(Paragraph("3. Preliminary Geotechnical Parameters", ss["H2"]))
+    story.append(Paragraph(f"Basis: {basis}.", ss["Disc"]))
     story.append(_kv_table([
         ("Soil description", p.soil_description or "-"),
         ("Friction angle φ'", f"{p.friction_angle_deg}°"),
@@ -266,7 +291,10 @@ def build_pdf(a: Assessment) -> bytes:
               Paragraph("<b>Source</b>", ss["CellB"])]]
     _pc = {"Measured": colors.HexColor("#2e7d32"), "Modelled": colors.HexColor("#b8860b"),
            "Estimated": colors.HexColor("#7b4b8a")}
+    measured_params = a.parameters.data_basis == "borehole"
     for layer, kind, src in prov:
+        if layer.startswith("Parameters") and measured_params:
+            kind, src = "Measured", "User borehole log (SPT/Meyerhof)"
         shown_kind = "Sample (demo)" if not live else kind
         col = colors.HexColor("#c62828") if not live else _pc[kind]
         prows.append([

@@ -103,3 +103,15 @@ table.soil td{padding:4px;border-bottom:1px solid var(--line);text-align:center;
 .src-badge.sample{background:#3a1f1f;color:#ff9a9a;border:1px solid #7a2f2f}
 .src-link{font-size:10.5px;color:#7fb0d6;text-decoration:none}
 .src-link:hover{text-decoration:underline}
+
+/* ---- borehole input ---- */
+.borehole{background:#0d1a26;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.borehole summary{cursor:pointer;font-size:12.5px;color:#9fe3c6;font-weight:600}
+.bh-hint{font-size:11px;color:var(--muted);margin:8px 0}
+.bh-rows-head,.bh-row{display:grid;grid-template-columns:1fr 1fr 2.4fr 0.9fr 0.8fr 0.6fr;gap:4px;align-items:center}
+.bh-rows-head{font-size:9.5px;color:var(--muted);margin:6px 0 2px;text-transform:uppercase;letter-spacing:.3px}
+.bh-row{margin:3px 0}
+.bh-row input{width:100%;margin:0;padding:6px 6px;font-size:11px}
+.bh-del{background:#3a1f1f;color:#ff9a9a;border:1px solid #6b2f2f;border-radius:6px;cursor:pointer;padding:5px}
+.bh-add{margin-top:8px;width:100%;padding:8px;border:1px dashed var(--accent);border-radius:8px;background:transparent;color:#8fe0bd;cursor:pointer;font-weight:600}
+.bh-note{font-size:11.5px;color:#8fe0bd;background:#0b1a16;border:1px solid #1f3d33;border-radius:8px;padding:7px 9px;margin:6px 0}

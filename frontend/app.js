@@ -84,16 +84,56 @@ async function searchPlace() {
 $("searchBtn").onclick = searchPlace;
 $("placeInput").addEventListener("keydown", (e) => { if (e.key === "Enter") searchPlace(); });
 
+// ---- Borehole / measured ground data -------------------------------------
+function addBhRow(v = {}) {
+  const row = document.createElement("div");
+  row.className = "bh-row";
+  row.innerHTML = `
+    <input class="bh-top" type="number" step="0.1" value="${v.top ?? ""}" />
+    <input class="bh-bot" type="number" step="0.1" value="${v.bot ?? ""}" />
+    <input class="bh-desc" type="text" placeholder="stiff CLAY" value="${v.desc ?? ""}" />
+    <input class="bh-uscs" type="text" placeholder="CL" value="${v.uscs ?? ""}" />
+    <input class="bh-n" type="number" step="1" placeholder="N" value="${v.n ?? ""}" />
+    <button type="button" class="bh-del" title="Remove">✕</button>`;
+  row.querySelector(".bh-del").onclick = () => row.remove();
+  $("bhRows").appendChild(row);
+}
+$("bhAdd").onclick = () => addBhRow();
+
+function readBorehole() {
+  const rows = [...document.querySelectorAll(".bh-row")];
+  const layers = [];
+  for (const r of rows) {
+    const top = parseFloat(r.querySelector(".bh-top").value);
+    const bot = parseFloat(r.querySelector(".bh-bot").value);
+    if (Number.isNaN(top) || Number.isNaN(bot) || bot <= top) continue;
+    const nRaw = r.querySelector(".bh-n").value;
+    layers.push({
+      top_m: top, bottom_m: bot,
+      description: r.querySelector(".bh-desc").value || null,
+      uscs: r.querySelector(".bh-uscs").value || null,
+      spt_n: nRaw === "" ? null : parseInt(nRaw, 10),
+    });
+  }
+  const gwRaw = $("bhGw").value;
+  const gw = gwRaw === "" ? null : parseFloat(gwRaw);
+  if (!layers.length && gw == null) return null;
+  return { layers, groundwater_depth_m: gw };
+}
+
 // ---- Run assessment ------------------------------------------------------
 function payload() {
   const lat = parseFloat($("lat").value), lon = parseFloat($("lon").value);
   if (Number.isNaN(lat) || Number.isNaN(lon)) return null;
-  return {
+  const body = {
     lat, lon,
     project_name: $("projectName").value || null,
     foundation_width_m: parseFloat($("fw").value) || 2.0,
     foundation_depth_m: parseFloat($("fd").value) || 1.5,
   };
+  const bh = readBorehole();
+  if (bh) body.borehole = bh;
+  return body;
 }
 
 $("runBtn").onclick = async () => {
@@ -294,8 +334,13 @@ function render(a) {
     ["Source", a.soil.source && a.soil.source.includes("DEMO") ? "sample" : "SoilGrids"],
   ]) + `</div></div>`;
 
-  html += head("🏗️", "Foundation &amp; parameters", "estimated",
-    "derived (Terzaghi/Vesic + ref. values)", null);
+  const measured = p.data_basis === "borehole";
+  html += head("🏗️", "Foundation &amp; parameters",
+    measured ? "measured" : "estimated",
+    measured ? "your borehole data (SPT/Meyerhof)" : "derived (Terzaghi/Vesic + ref. values)",
+    null);
+  if (measured)
+    html += `<div class="bh-note">✔ Computed from your measured borehole log, overriding the satellite soil estimate.</div>`;
   html += kv([
     ["Recommended", p.recommended_foundation],
     ["Net allowable bearing", p.allowable_bearing_kpa + " kPa (FS 3)"],
@@ -309,6 +354,17 @@ function render(a) {
   ]);
   html += `<div class="chart-wrap"><div class="chart-title">Allowable bearing vs footing width</div>`
     + bearingChart(p.bearing_curve) + `</div>`;
+
+  if (a.borehole && a.borehole.layers && a.borehole.layers.length) {
+    html += head("🧪", "Borehole log (measured)", "measured", "user-supplied", null);
+    html += `<table class="soil"><tr><th>Top m</th><th>Base m</th><th>Description</th><th>USCS</th><th>SPT N</th></tr>`;
+    for (const l of a.borehole.layers)
+      html += `<tr><td>${esc(l.top_m)}</td><td>${esc(l.bottom_m)}</td>
+        <td style="text-align:left">${esc(l.description)}</td><td>${esc(l.uscs)}</td><td>${esc(l.spt_n)}</td></tr>`;
+    html += `</table>`;
+    if (a.borehole.groundwater_depth_m != null)
+      html += `<div class="kv"><div class="k">Groundwater depth</div><div class="v">${a.borehole.groundwater_depth_m} m</div></div>`;
+  }
 
   html += head("🏔️", "Terrain", "measured", "NASA SRTM / OpenTopoData", "https://www.opentopodata.org/");
   html += kv([

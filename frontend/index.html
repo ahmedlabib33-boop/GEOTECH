@@ -46,6 +46,18 @@
           <label>Footing width B (m) <input id="fw" type="number" step="0.1" value="2.0" /></label>
           <label>Founding depth Df (m) <input id="fd" type="number" step="0.1" value="1.5" /></label>
         </div>
+        <details class="borehole">
+          <summary>🧪 Borehole / measured ground data (optional — overrides satellite soil)</summary>
+          <p class="bh-hint">Enter real borehole, trial-pit or CPT layers. When provided, the
+            foundation parameters are computed from <b>your measured data</b>, not the satellite model.</p>
+          <label>Groundwater depth (m, optional)
+            <input id="bhGw" type="number" step="0.1" placeholder="e.g. 3.5" /></label>
+          <div class="bh-rows-head">
+            <span>Top&nbsp;m</span><span>Base&nbsp;m</span><span>Soil description</span><span>USCS</span><span>SPT&nbsp;N</span><span></span>
+          </div>
+          <div id="bhRows"></div>
+          <button id="bhAdd" type="button" class="bh-add">+ Add layer</button>
+        </details>
         <label class="checkline">
           <input id="demo" type="checkbox" /> Demo mode (sample data, no network)
         </label>
