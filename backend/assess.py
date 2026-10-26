@@ -55,16 +55,18 @@ async def _resolve_location(req: AssessRequest) -> Location:
 
 
 async def _hydro_then_logistics(client, lat: float, lon: float):
-    """Hydrology and logistics both hit the public OSM Overpass API; running
-    them concurrently from one IP makes the instance reject both. Run them
-    sequentially (each catching its own error) so neither starves the other."""
+    """Hydrology and logistics both hit the public OSM Overpass API. Run them
+    one after the other (concurrent requests from one IP make the instance
+    reject both) and HARD-BOUND each: the public Overpass instances are often
+    slow or 502-ing, and without a cap the two sequential calls could exceed the
+    60 s function budget and 504 the whole assessment. On timeout each degrades
+    to 'unavailable' (real-only) while every other layer still returns."""
     try:
-        hydro = await with_retry(lambda: hydro_svc.fetch_hydrology(client, lat, lon))
+        hydro = await asyncio.wait_for(hydro_svc.fetch_hydrology(client, lat, lon), 18.0)
     except Exception as e:
         hydro = e
     try:
-        logi = await with_retry(lambda: logistics_svc.fetch_logistics(client, lat, lon),
-                                attempts=1)
+        logi = await asyncio.wait_for(logistics_svc.fetch_logistics(client, lat, lon), 16.0)
     except Exception as e:
         logi = e
     return hydro, logi

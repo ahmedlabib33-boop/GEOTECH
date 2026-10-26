@@ -24,10 +24,12 @@ _last_good: dict[str, str | None] = {"url": None}
 
 
 async def overpass_elements(client: httpx.AsyncClient, query: str,
-                            read: float = 8.0) -> list:
+                            read: float = 6.0) -> list:
     """POST an Overpass QL query, failing over across mirrors. Returns the
-    `elements` list from the first endpoint that answers 200."""
-    timeout = httpx.Timeout(connect=5.0, read=read, write=10.0, pool=10.0)
+    `elements` list from the first endpoint that answers 200. Timeouts are kept
+    short so a flaky/overloaded instance fails fast; the caller bounds the total
+    so Overpass trouble can never stall the whole assessment (real-only)."""
+    timeout = httpx.Timeout(connect=4.0, read=read, write=10.0, pool=10.0)
     order = ENDPOINTS
     if _last_good["url"] in ENDPOINTS:
         order = [_last_good["url"]] + [u for u in ENDPOINTS if u != _last_good["url"]]
