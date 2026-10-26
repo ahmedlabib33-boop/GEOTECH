@@ -16,13 +16,15 @@ import httpx
 
 from ..schemas import LogisticsPOI, SiteLogistics
 
-# A mirror distinct from hydrology's (overpass-api.de) to avoid per-IP contention.
-OVERPASS = "https://overpass.kumi.systems/api/interpreter"
-_TIMEOUT = httpx.Timeout(connect=10.0, read=50.0, write=10.0, pool=10.0)
+# Same endpoint hydrology uses (proven reachable); Overpass queues the two
+# queries per IP. A moderate timeout keeps a slow response from dominating the
+# 60 s function budget — on failure the layer degrades to a note (real-only).
+OVERPASS = "https://overpass-api.de/api/interpreter"
+_TIMEOUT = httpx.Timeout(connect=10.0, read=30.0, write=10.0, pool=10.0)
 
 # (kind, radius_m) per category.
 _PORT_R, _AIR_R, _ROAD_R, _RAIL_R, _URBAN_R, _QUARRY_R, _POWER_R = (
-    300_000, 200_000, 25_000, 120_000, 120_000, 80_000, 40_000)
+    200_000, 150_000, 25_000, 120_000, 120_000, 80_000, 40_000)
 
 
 def _haversine_km(lat1, lon1, lat2, lon2) -> float:
@@ -56,7 +58,7 @@ def _classify(tags: dict) -> Optional[str]:
 
 def _query(lat: float, lon: float) -> str:
     return f"""
-    [out:json][timeout:50];
+    [out:json][timeout:30];
     (
       nwr(around:{_PORT_R},{lat},{lon})[harbour];
       nwr(around:{_PORT_R},{lat},{lon})[industrial=port];
@@ -86,7 +88,7 @@ def _rating(port, road, urban) -> tuple[str, str]:
     rating = ("Easy" if score <= 1 else "Moderate" if score <= 4
               else "Difficult" if score <= 7 else "Remote")
     bits = []
-    bits.append("no seaport within 300 km" if port is None else f"port ~{port:.0f} km")
+    bits.append("no seaport within 200 km" if port is None else f"port ~{port:.0f} km")
     bits.append("no major road within 25 km" if road is None else f"major road ~{road:.0f} km")
     bits.append("no town within 120 km" if urban is None else f"town ~{urban:.0f} km")
     return rating, "; ".join(bits)
