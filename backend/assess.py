@@ -10,8 +10,9 @@ from __future__ import annotations
 import asyncio
 from datetime import datetime, timezone
 
-from .schemas import (AssessRequest, Assessment, Climate, Hydrology, Location,
-                      SeismicContext, SoilProfile, Terrain, Vegetation)
+from .schemas import (AssessRequest, Assessment, Climate, GeotechParameters,
+                      HazardRating, Hydrology, Location, SeismicContext,
+                      SoilProfile, Terrain, Vegetation)
 from .services.http import new_client, with_retry
 from .services import (geocoding, terrain as terrain_svc, soil as soil_svc,
                        seismic as seismic_svc, climate as climate_svc,
@@ -105,48 +106,48 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False,
                 sh_svc.fetch_sentinel(lat, lon),
                 gm_svc.fetch_ground_motion(lat, lon, req.insar_velocity_mm_yr))
 
+        # REAL-ONLY: a failed/unavailable source is reported as unavailable and
+        # is NEVER replaced with synthetic sample data.
         if isinstance(t_res, Terrain):
             terrain = t_res
         else:
-            warnings.append(f"Terrain source failed ({type(t_res).__name__}); using sample data.")
-            terrain = demo.demo_terrain(lat, lon)
+            terrain = Terrain(source="unavailable", note="Terrain/DEM data unavailable at this point.")
+            warnings.append("Terrain/DEM source unavailable — not substituted (real-only).")
 
         if isinstance(s_res, SoilProfile) and s_res.layers:
             soil = s_res
         else:
-            reason = type(s_res).__name__ if isinstance(s_res, Exception) else "no coverage"
-            warnings.append(f"Soil source unavailable ({reason}); using sample data.")
-            soil = demo.demo_soil(lat, lon)
+            soil = SoilProfile(source="unavailable", note="Soil data unavailable at this point.")
+            warnings.append("Soil (SoilGrids) unavailable — not substituted (real-only).")
 
         if isinstance(q_res, SeismicContext):
             seismic = q_res
         else:
-            warnings.append(f"Seismic source failed ({type(q_res).__name__}); using sample data.")
-            seismic = demo.demo_seismic(lat, lon)
+            seismic = SeismicContext(search_radius_km=300.0, source="unavailable",
+                                     note="Seismic catalogue unavailable.")
+            warnings.append("Seismic (USGS) source unavailable — not substituted (real-only).")
 
         if isinstance(c_res, Climate) and c_res.annual_precip_mm is not None:
             climate = c_res
         else:
-            reason = type(c_res).__name__ if isinstance(c_res, Exception) else "no coverage"
-            warnings.append(f"Climate source unavailable ({reason}); using sample data.")
-            climate = demo.demo_climate(lat, lon)
+            climate = Climate(source="unavailable", note="Climate data unavailable.")
+            warnings.append("Climate (ERA5) source unavailable — not substituted (real-only).")
 
         if isinstance(v_res, Vegetation) and v_res.ndvi is not None:
             vegetation = v_res
         else:
-            reason = type(v_res).__name__ if isinstance(v_res, Exception) else "no coverage"
-            warnings.append(f"Vegetation/NDVI source unavailable ({reason}); using sample data.")
-            vegetation = demo.demo_vegetation(lat, lon)
+            vegetation = Vegetation(source="unavailable", note="Vegetation/NDVI data unavailable.")
+            warnings.append("Vegetation/NDVI source unavailable — not substituted (real-only).")
 
         if isinstance(h_res, Hydrology):
             hydrology = h_res
             if hydrology.height_above_water_m is None:
                 hydrology.height_above_water_m = terrain.elevation_m
         else:
-            warnings.append(f"Hydrology source failed ({type(h_res).__name__}); using sample data.")
-            hydrology = demo.demo_hydrology(lat, lon, terrain)
+            hydrology = Hydrology(source="unavailable", note="Hydrology data unavailable.")
+            warnings.append("Hydrology source unavailable — not substituted (real-only).")
 
-        # Upgrade NDVI to the Sentinel-2 10 m reading when available.
+        # Upgrade NDVI to the Sentinel-2 10 m reading when available (real data).
         if sentinel is not None and sentinel.ndvi is not None:
             from .services.vegetation import cover_class
             cls, desc = cover_class(sentinel.ndvi)
@@ -156,21 +157,47 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False,
             vegetation.observation_date = sentinel.observation_date or vegetation.observation_date
             vegetation.source = "Sentinel-2 L2A 10 m (Sentinel Hub)"
 
+    # Availability of real data (drives real-only gating).
+    terrain_ok = terrain.elevation_m is not None or terrain.slope_deg is not None
+    soil_ok = bool(soil.layers)
+    seismic_ok = (seismic.source or "") != "unavailable"
+
     gw_depth = None
     if has_usable_data(req.borehole):
         params = build_parameters_from_borehole(
             req.borehole, req.foundation_width_m, req.foundation_depth_m)
         gw_depth = req.borehole.groundwater_depth_m
         warnings.append(
-            "Foundation parameters derived from the supplied BOREHOLE (measured data), "
-            "overriding the satellite soil estimate.")
-    else:
+            "Foundation parameters derived from the supplied BOREHOLE (measured data).")
+    elif soil_ok:
         params = build_parameters(soil, terrain, climate,
                                   req.foundation_width_m, req.foundation_depth_m,
                                   req.foundation_length_m)
+    else:
+        params = GeotechParameters(
+            data_basis="unavailable",
+            soil_description="Not computed — no real soil data for this point.",
+            recommended_foundation="Intrusive ground investigation required (no soil data).")
 
     hazards = all_hazards(terrain, soil, seismic, climate, vegetation, hydrology,
                           gw_depth, ground_motion)
+
+    # REAL-ONLY: mark hazards whose required real inputs are missing as
+    # "Insufficient data" instead of assessing from assumed defaults.
+    if data_mode == "live":
+        req_ok = {
+            "Flooding / inundation": terrain_ok,
+            "Slope instability / landslide": terrain_ok,
+            "Seismicity": seismic_ok,
+            "Expansive / shrink-swell soil": soil_ok,
+            "Liquefaction potential": soil_ok and seismic_ok,
+        }
+        hazards = [h if req_ok.get(h.name, True) else
+                   HazardRating(name=h.name, level="Insufficient data", score=0.0,
+                                rationale="Required input data was unavailable; not "
+                                          "assessed (real-only mode).")
+                   for h in hazards]
+
     suitability = build_suitability(hazards, params, terrain)
     recommendations = build_recommendations(terrain, soil, seismic, params, hazards,
                                             climate, vegetation, hydrology)

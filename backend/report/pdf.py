@@ -149,8 +149,10 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
         ("Coordinates", f"{a.location.lat:.5f}, {a.location.lon:.5f}"),
         ("Country", a.location.country or "-"),
         ("Preliminary foundation", a.parameters.recommended_foundation or "-"),
-        ("Net allowable bearing", f"{a.parameters.allowable_bearing_kpa} kPa "
-         f"({'measured' if a.parameters.data_basis == 'borehole' else 'model'})"),
+        ("Net allowable bearing",
+         "Not available (no real soil data)" if a.parameters.allowable_bearing_kpa is None
+         else f"{a.parameters.allowable_bearing_kpa} kPa "
+              f"({'measured' if a.parameters.data_basis == 'borehole' else 'model'})"),
         ("Generated", a.generated_utc),
         ("Data mode", mode),
     ], ss, [44 * mm, 134 * mm]))

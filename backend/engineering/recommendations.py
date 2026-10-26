@@ -15,6 +15,19 @@ def build_recommendations(terrain: Terrain, soil: SoilProfile,
     recs: list[Recommendation] = []
     hz = {h.name: h for h in hazards}
 
+    # Real-only: no computed soil parameters → do not fabricate foundation advice.
+    if params.data_basis == "unavailable":
+        recs.append(Recommendation(
+            category="Data availability",
+            text=("Core ground data was unavailable for this point, so no bearing or "
+                  "settlement estimate could be produced. An intrusive ground "
+                  "investigation (boreholes/CPT, laboratory testing) is required to "
+                  "establish design parameters.")))
+        for h in hazards:
+            if h.level in ("High", "Very High"):
+                recs.append(Recommendation(category=h.name, text=h.rationale))
+        return recs
+
     # Foundation type
     bearing = params.allowable_bearing_kpa or 0
     if bearing >= 200:

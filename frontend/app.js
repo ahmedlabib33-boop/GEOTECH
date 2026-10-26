@@ -375,14 +375,20 @@ function suitabilityGauge(su) {
 
 function hazardMeters(hazards) {
   return hazards.map((h) => {
-    const p = sev(h.level);
+    const insuff = /insufficient/i.test(h.level || "");
+    const p = insuff ? 0 : sev(h.level);
+    const badge = insuff ? "badge insuff" : cls(h.level);
+    const bar = insuff ? "" :
+      `<div class="meter"><div class="meter-fill" style="width:${p}%;background:${sevColor(p)}"></div></div>`;
     return `<div class="meter-row">
       <div class="meter-head"><span>${esc(h.name)}</span>
-        <span class="${cls(h.level)}">${esc(h.level)}</span></div>
-      <div class="meter"><div class="meter-fill" style="width:${p}%;background:${sevColor(p)}"></div></div>
-      <div class="meter-why">${esc(h.rationale)}</div></div>`;
+        <span class="${badge}">${esc(h.level)}</span></div>
+      ${bar}<div class="meter-why">${esc(h.rationale)}</div></div>`;
   }).join("");
 }
+
+// Format a possibly-null value with an optional unit suffix.
+const u = (v, suffix = "") => (v == null || v === "" ? "—" : v + suffix);
 
 function soilColumn(soil) {
   const layers = soil.layers || [];
@@ -492,17 +498,19 @@ function render(a) {
     null);
   if (measured)
     html += `<div class="bh-note">✔ Computed from your measured borehole log, overriding the satellite soil estimate.</div>`;
-  html += kv([
+  const paramRows = [
     ["Recommended", p.recommended_foundation],
-    ["Net allowable bearing", p.allowable_bearing_kpa + " kPa (FS 3)"],
-    ["Ultimate bearing", p.ultimate_bearing_kpa + " kPa"],
-    ["Est. settlement", p.settlement_mm + " mm"],
-    ["Min. founding depth", p.min_founding_depth_m + " m"],
-    ["Friction φ' / cohesion c", p.friction_angle_deg + "° / " + p.cohesion_kpa + " kPa"],
-    ["Unit weight / Es", p.unit_weight_kn_m3 + " kN/m³ / " + p.elastic_modulus_mpa + " MPa"],
+    ["Net allowable bearing", p.allowable_bearing_kpa == null ? "—" : p.allowable_bearing_kpa + " kPa (FS 3)"],
+    ["Ultimate bearing", u(p.ultimate_bearing_kpa, " kPa")],
+    ["Est. settlement", u(p.settlement_mm, " mm")],
+    ["Min. founding depth", u(p.min_founding_depth_m, " m")],
+    ["Friction φ' / cohesion c", (u(p.friction_angle_deg, "°")) + " / " + u(p.cohesion_kpa, " kPa")],
+    ["Unit weight / Es", u(p.unit_weight_kn_m3, " kN/m³") + " / " + u(p.elastic_modulus_mpa, " MPa")],
     ["Typical SPT N", p.typical_spt_n],
-    ["Seismic site class", p.seismic_site_class + " (Vs30~" + p.vs30_proxy_mps + ")"],
-  ]);
+    ["Seismic site class", p.vs30_proxy_mps == null ? u(p.seismic_site_class)
+      : p.seismic_site_class + " (Vs30~" + p.vs30_proxy_mps + ")"],
+  ];
+  html += kv(paramRows);
   html += `<div class="chart-wrap"><div class="chart-title">Allowable bearing vs footing width</div>`
     + bearingChart(p.bearing_curve) + `</div>`;
 

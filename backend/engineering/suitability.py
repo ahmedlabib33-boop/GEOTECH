@@ -15,12 +15,19 @@ def _rating(score: float) -> str:
 
 
 def build_suitability(hazards: list[HazardRating], params: GeotechParameters,
-                      terrain: Terrain) -> Suitability:
+                      terrain: Terrain) -> Suitability | None:
+    # Real-only: a suitability score requires a real bearing value; otherwise
+    # there is nothing honest to score.
+    if params.allowable_bearing_kpa is None:
+        return None
+    # Only assessed hazards count (ignore "Insufficient data").
+    usable = [h for h in hazards if h.level != "Insufficient data"]
     # Hazard component: 1 - weighted mean of hazard scores (seismic weighted up).
     weights = {"Seismicity": 1.4, "Slope instability / landslide": 1.3,
                "Flooding / inundation": 1.2, "Ground motion / subsidence": 1.3}
-    wsum = sum(weights.get(h.name, 1.0) for h in hazards)
-    hazard_mean = sum(h.score * weights.get(h.name, 1.0) for h in hazards) / wsum if hazards else 0
+    wsum = sum(weights.get(h.name, 1.0) for h in usable)
+    hazard_mean = (sum(h.score * weights.get(h.name, 1.0) for h in usable) / wsum
+                   if wsum else 0)
     hazard_component = (1 - hazard_mean) * 100
 
     # Bearing component: map net allowable 0..300 kPa onto 0..100.
