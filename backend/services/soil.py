@@ -90,10 +90,12 @@ async def fetch_soil(client: httpx.AsyncClient, lat: float, lon: float) -> SoilP
     profile = SoilProfile(source="ISRIC SoilGrids v2.0 (250 m, median + 5th/95th pct)")
     for depth in DEPTHS:
         top, bottom = _depth_bounds(depth)
-        # Use the median (Q0.5) for texture; fall back to mean.
-        clay = prop_value("clay", depth, "Q0.5") or prop_value("clay", depth)
-        sand = prop_value("sand", depth, "Q0.5") or prop_value("sand", depth)
-        silt = prop_value("silt", depth, "Q0.5") or prop_value("silt", depth)
+        # Use the median (Q0.5) for texture; fall back to mean. (Explicit None
+        # check — a legitimate 0.0 median must not trigger the fallback.)
+        def med(prop: str):
+            v = prop_value(prop, depth, "Q0.5")
+            return v if v is not None else prop_value(prop, depth)
+        clay, sand, silt = med("clay"), med("sand"), med("silt")
         texture = usda_texture(sand, silt, clay)
         layer = SoilLayer(
             depth_label=depth,

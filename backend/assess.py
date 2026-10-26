@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timezone
-from typing import Optional
 
 from .schemas import (AssessRequest, Assessment, Climate, Hydrology, Location,
                       SeismicContext, SoilProfile, Terrain, Vegetation)

@@ -4,7 +4,6 @@ from __future__ import annotations
 import io
 
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
@@ -493,7 +492,6 @@ def build_compare_pdf(items: list) -> bytes:
     data = [[Paragraph(f"<b>{c}</b>" if (i == 0 or j == 0) else c,
                        ss["CellB"] if i == 0 else ss["Cell"]) for j, c in enumerate(r)]
             for i, r in enumerate(rows)]
-    ncol = len(names) + 1
     first = 52 * mm
     rest = (landscape(A4)[0] - 28 * mm - first) / max(len(names), 1)
     t = Table(data, colWidths=[first] + [rest] * len(names), repeatRows=1)

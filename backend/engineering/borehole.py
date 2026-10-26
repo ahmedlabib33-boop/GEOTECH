@@ -10,7 +10,6 @@ grounded in the site's own measurements rather than a 250 m global model.
 """
 from __future__ import annotations
 
-import math
 from typing import Optional
 
 from ..schemas import BearingPoint, Borehole, BoreholeLayer, GeotechParameters

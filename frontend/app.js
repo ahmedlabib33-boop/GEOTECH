@@ -55,7 +55,9 @@ function setSite(lat, lon, fly) {
   lon = +(+lon).toFixed(6);
   $("lat").value = lat;
   $("lon").value = lon;
-  $("coordReadout").textContent = `Site: ${lat}, ${lon}`;
+  const cr = $("coordReadout");
+  cr.dataset.base = `Site: ${lat}, ${lon}`;
+  cr.textContent = cr.dataset.base;
   if (marker) marker.setLatLng([lat, lon]);
   else marker = L.marker([lat, lon], { draggable: true }).addTo(map)
           .on("dragend", (e) => { const p = e.target.getLatLng(); setSite(p.lat, p.lng, false); });
@@ -147,10 +149,11 @@ let _flashT = null;
 function flash(msg) {
   const el = $("coordReadout");
   if (!el) return;
-  const prev = el.dataset.base || el.textContent;
   el.textContent = msg;
   clearTimeout(_flashT);
-  _flashT = setTimeout(() => { el.textContent = prev; }, 3500);
+  _flashT = setTimeout(() => {
+    el.textContent = el.dataset.base || "Click the map or search to drop a site pin";
+  }, 3500);
 }
 
 // ---- Place search (browser-side Nominatim) -------------------------------
