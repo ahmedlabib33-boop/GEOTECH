@@ -51,6 +51,10 @@ class AssessRequest(BaseModel):
     foundation_length_m: Optional[float] = Field(
         None, gt=0, le=100, description="Footing length L (m); defaults to B (square)"
     )
+    insar_velocity_mm_yr: Optional[float] = Field(
+        None, ge=-500, le=500,
+        description="Measured InSAR ground-motion velocity (+uplift/-subsidence)"
+    )
     borehole: Optional[Borehole] = Field(
         None, description="Measured ground data; overrides the satellite soil estimate"
     )
@@ -143,6 +147,18 @@ class Climate(BaseModel):
     wetness_class: Optional[str] = None
     source: Optional[str] = None
     note: Optional[str] = None
+
+
+# --------------------------------------------------------------------------- #
+# Ground motion (InSAR line-of-sight / vertical velocity)
+# --------------------------------------------------------------------------- #
+class GroundMotion(BaseModel):
+    velocity_mm_yr: Optional[float] = None   # signed: + uplift, - subsidence
+    direction: Optional[str] = None          # "subsidence" / "uplift" / "stable"
+    period: Optional[str] = None
+    source: Optional[str] = None
+    note: Optional[str] = None
+    egms_viewer_url: Optional[str] = None
 
 
 # --------------------------------------------------------------------------- #
@@ -248,6 +264,7 @@ class Assessment(BaseModel):
     vegetation: Vegetation = Field(default_factory=Vegetation)
     sentinel: Optional[SentinelHR] = None
     hydrology: Hydrology = Field(default_factory=Hydrology)
+    ground_motion: Optional[GroundMotion] = None
     borehole: Optional[Borehole] = None
     parameters: GeotechParameters
     suitability: Optional[Suitability] = None

@@ -17,7 +17,7 @@ from .services.http import new_client
 from .services import (geocoding, terrain as terrain_svc, soil as soil_svc,
                        seismic as seismic_svc, climate as climate_svc,
                        vegetation as veg_svc, hydrology as hydro_svc,
-                       sentinelhub as sh_svc)
+                       sentinelhub as sh_svc, groundmotion as gm_svc)
 from .services import demo
 from .engineering.parameters import build_parameters
 from .engineering.borehole import build_parameters_from_borehole, has_usable_data
@@ -88,11 +88,22 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False,
         vegetation = demo.demo_vegetation(lat, lon)
         hydrology = demo.demo_hydrology(lat, lon, terrain)
         sentinel = None
+        ground_motion = (gm_svc and demo.demo_ground_motion(lat, lon))
+        if req.insar_velocity_mm_yr is not None:
+            from .services.groundmotion import classify, _egms_url
+            dirn, note = classify(req.insar_velocity_mm_yr)
+            from .schemas import GroundMotion as _GM
+            ground_motion = _GM(velocity_mm_yr=req.insar_velocity_mm_yr, direction=dirn,
+                                note=note, source="User-supplied InSAR velocity (measured)",
+                                egms_viewer_url=_egms_url(lat, lon))
         data_mode = "demo"
     else:
         data_mode = "live"
-        (t_res, s_res, q_res, c_res, v_res, h_res), sentinel = await asyncio.gather(
-            _gather_live(lat, lon), sh_svc.fetch_sentinel(lat, lon))
+        (t_res, s_res, q_res, c_res, v_res, h_res), sentinel, ground_motion = \
+            await asyncio.gather(
+                _gather_live(lat, lon),
+                sh_svc.fetch_sentinel(lat, lon),
+                gm_svc.fetch_ground_motion(lat, lon, req.insar_velocity_mm_yr))
 
         if isinstance(t_res, Terrain):
             terrain = t_res
@@ -158,7 +169,8 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False,
                                   req.foundation_width_m, req.foundation_depth_m,
                                   req.foundation_length_m)
 
-    hazards = all_hazards(terrain, soil, seismic, climate, vegetation, hydrology, gw_depth)
+    hazards = all_hazards(terrain, soil, seismic, climate, vegetation, hydrology,
+                          gw_depth, ground_motion)
     suitability = build_suitability(hazards, params, terrain)
     recommendations = build_recommendations(terrain, soil, seismic, params, hazards,
                                             climate, vegetation, hydrology)
@@ -174,6 +186,7 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False,
         vegetation=vegetation,
         sentinel=sentinel,
         hydrology=hydrology,
+        ground_motion=ground_motion,
         borehole=req.borehole if has_usable_data(req.borehole) else None,
         parameters=params,
         suitability=suitability,

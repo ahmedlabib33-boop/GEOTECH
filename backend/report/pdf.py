@@ -308,6 +308,19 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
         story.append(Paragraph(f"<b>{r.category}.</b> {r.text}", ss["Body"]))
         story.append(Spacer(1, 3))
 
+    # Ground motion (InSAR)
+    gm = a.ground_motion
+    if gm and (gm.velocity_mm_yr is not None or gm.egms_viewer_url):
+        story.append(Paragraph("Ground Motion (InSAR)", ss["H2"]))
+        gmrows = []
+        if gm.velocity_mm_yr is not None:
+            gmrows.append(("Velocity", f"{gm.velocity_mm_yr:+.1f} mm/yr ({gm.direction})"))
+        gmrows.append(("Assessment", gm.note or "-"))
+        gmrows.append(("Source", gm.source or "-"))
+        if gm.egms_viewer_url:
+            gmrows.append(("EGMS viewer", gm.egms_viewer_url))
+        story.append(_kv_table(gmrows, ss, [40 * mm, 138 * mm]))
+
     # Data sources & provenance
     story.append(Paragraph("Data Sources &amp; Provenance", ss["H2"]))
     live = a.data_mode == "live"

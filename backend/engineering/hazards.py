@@ -4,8 +4,8 @@ from __future__ import annotations
 import math
 from typing import Optional
 
-from ..schemas import (Climate, HazardRating, Hydrology, SeismicContext,
-                       SoilProfile, Terrain, Vegetation)
+from ..schemas import (Climate, GroundMotion, HazardRating, Hydrology,
+                       SeismicContext, SoilProfile, Terrain, Vegetation)
 
 
 def _level(score: float) -> str:
@@ -159,15 +159,30 @@ def flood_hazard(terrain: Terrain, climate: Optional[Climate] = None,
                         score=round(min(score, 1.0), 2), rationale=rationale)
 
 
+def ground_motion_hazard(gm: GroundMotion) -> HazardRating:
+    v = gm.velocity_mm_yr or 0.0
+    mag = abs(v)
+    score = min(mag / 40.0, 1.0)
+    rationale = (f"Measured InSAR velocity {v:+.1f} mm/yr ({gm.direction}). "
+                 "Ongoing ground movement drives differential settlement/heave and "
+                 "can damage foundations and services.")
+    return HazardRating(name="Ground motion / subsidence", level=_level(score),
+                        score=round(score, 2), rationale=rationale)
+
+
 def all_hazards(terrain: Terrain, soil: SoilProfile, seismic: SeismicContext,
                 climate: Optional[Climate] = None,
                 vegetation: Optional[Vegetation] = None,
                 hydrology: Optional[Hydrology] = None,
-                gw_depth_m: Optional[float] = None) -> list[HazardRating]:
-    return [
+                gw_depth_m: Optional[float] = None,
+                ground_motion: Optional[GroundMotion] = None) -> list[HazardRating]:
+    hazards = [
         flood_hazard(terrain, climate, hydrology),
         landslide_hazard(terrain, soil, climate, vegetation),
         seismic_hazard(seismic),
         expansive_soil_hazard(soil),
         liquefaction_hazard(soil, seismic, terrain, gw_depth_m),
     ]
+    if ground_motion is not None and ground_motion.velocity_mm_yr is not None:
+        hazards.append(ground_motion_hazard(ground_motion))
+    return hazards

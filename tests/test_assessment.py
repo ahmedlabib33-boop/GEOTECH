@@ -28,7 +28,7 @@ def test_demo_assessment_complete():
     assert a.suitability is not None
     assert 0 <= a.suitability.score <= 100
     assert a.suitability.rating in ("Favourable", "Marginal", "Challenging", "Severe")
-    assert len(a.hazards) == 5
+    assert len(a.hazards) >= 5
     assert any(h.name == "Flooding / inundation" for h in a.hazards)
     assert a.recommendations
     assert a.disclaimer

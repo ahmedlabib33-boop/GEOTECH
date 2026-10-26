@@ -71,6 +71,21 @@ with no internet.
 - **Climate normals** — rainfall/temperature are **averaged over the last 5 full
   years** (not a single year) for a more representative normal.
 
+## InSAR ground-motion layer (subsidence / uplift)
+
+Satellite InSAR measures mm/yr ground-surface movement — key for settlement,
+sinkholes and slope creep. There is no free, no-login, global live InSAR point
+API, so this layer takes the velocity from, in order:
+
+1. a value entered with the request (`insar_velocity_mm_yr`, + uplift / −
+   subsidence) — e.g. read off an **EGMS** download or a commercial report;
+2. an optional provider set via `INSAR_API_URL` (a URL with `{lat}`/`{lon}`
+   placeholders returning JSON with a velocity field).
+
+The velocity becomes a **"Ground motion / subsidence"** hazard (weighted into
+the suitability index) with recommendations, a report section, and — for
+European sites — a direct **EGMS viewer** link to the measured data.
+
 ## Borehole / measured-data override (true accuracy)
 
 Satellite data is a *screen*; measured ground data is the truth. Expand

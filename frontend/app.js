@@ -133,6 +133,8 @@ function payload() {
   };
   const fl = parseFloat($("fl").value);
   if (!Number.isNaN(fl) && fl > 0) body.foundation_length_m = fl;
+  const iv = parseFloat($("insar").value);
+  if (!Number.isNaN(iv)) body.insar_velocity_mm_yr = iv;
   const bh = readBorehole();
   if (bh) body.borehole = bh;
   return body;
@@ -381,6 +383,17 @@ function render(a) {
     ["Mean / min temp", (cl.mean_temp_c ?? "—") + " / " + (cl.min_temp_c ?? "—") + " °C"],
     ["Frost penetration", cl.frost_depth_m != null ? cl.frost_depth_m + " m" : "—"],
   ]);
+
+  const gm = a.ground_motion;
+  if (gm && (gm.velocity_mm_yr != null || gm.egms_viewer_url)) {
+    const link = gm.egms_viewer_url
+      ? ` · <a class="src-link" href="${gm.egms_viewer_url}" target="_blank" rel="noopener">EGMS viewer ↗</a>` : "";
+    html += head("📡", "Ground motion (InSAR)", gm.velocity_mm_yr != null ? "measured" : "estimated",
+      "InSAR / EGMS", null);
+    if (gm.velocity_mm_yr != null)
+      html += kv([["Velocity", `${gm.velocity_mm_yr} mm/yr (${esc(gm.direction)})`]]);
+    html += `<div class="meter-why">${esc(gm.note)}${link}</div>`;
+  }
 
   const sh = a.sentinel;
   if (sh && sh.ndvi != null) {

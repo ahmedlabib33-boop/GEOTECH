@@ -10,8 +10,8 @@ import math
 
 from datetime import date
 
-from ..schemas import (Climate, Hydrology, Location, SeismicContext, SoilLayer,
-                       SoilProfile, Terrain, Vegetation)
+from ..schemas import (Climate, GroundMotion, Hydrology, Location, SeismicContext,
+                       SoilLayer, SoilProfile, Terrain, Vegetation)
 from ..engineering.classification import usda_texture, usda_to_uscs
 
 DEPTHS = [("0-5cm", 0, 5), ("5-15cm", 5, 15), ("15-30cm", 15, 30),
@@ -97,6 +97,15 @@ def demo_vegetation(lat: float, lon: float) -> Vegetation:
                       cover_class=cls, ground_description=desc,
                       source="DEMO (sample data — not a real MODIS query)",
                       note="Offline demo mode.")
+
+
+def demo_ground_motion(lat: float, lon: float) -> GroundMotion:
+    from .groundmotion import classify, _egms_url
+    v = round((_pseudo(lat + 8, lon - 3) - 0.6) * 40, 1)  # mostly mild subsidence
+    direction, note = classify(v)
+    return GroundMotion(velocity_mm_yr=v, direction=direction, note=note,
+                        source="DEMO (sample data — not a real InSAR query)",
+                        egms_viewer_url=_egms_url(lat, lon))
 
 
 def demo_hydrology(lat: float, lon: float, terrain: Terrain = None) -> Hydrology:

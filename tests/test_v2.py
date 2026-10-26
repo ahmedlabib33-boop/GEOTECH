@@ -61,6 +61,25 @@ def test_flood_hazard_higher_near_water_lowland():
     assert low.name == "Flooding / inundation"
 
 
+def test_insar_velocity_adds_hazard():
+    import asyncio
+    from backend.schemas import AssessRequest
+    from backend.assess import run_assessment
+    a = asyncio.run(run_assessment(
+        AssessRequest(lat=30, lon=31, insar_velocity_mm_yr=-35.0), demo_mode=True))
+    assert a.ground_motion is not None
+    assert a.ground_motion.direction == "subsidence"
+    gm = [h for h in a.hazards if h.name == "Ground motion / subsidence"]
+    assert gm and gm[0].level in ("High", "Very High")
+
+
+def test_insar_classify():
+    from backend.services.groundmotion import classify
+    assert classify(-35)[0] == "subsidence"
+    assert classify(8)[0] == "uplift"
+    assert classify(0.5)[0] == "stable"
+
+
 def test_sentinel_disabled_without_creds(monkeypatch):
     import asyncio
     from backend.services import sentinelhub as sh

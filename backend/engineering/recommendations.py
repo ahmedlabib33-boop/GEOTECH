@@ -137,6 +137,21 @@ def build_recommendations(terrain: Terrain, soil: SoilProfile,
             text=("Moderate flood exposure: check the site against local flood-zone "
                   "mapping and set finished floor levels with adequate freeboard.")))
 
+    # Ground motion / subsidence (InSAR)
+    gm = hz.get("Ground motion / subsidence")
+    if gm and gm.level in ("High", "Very High"):
+        recs.append(Recommendation(
+            category="Ground movement",
+            text=("Measured InSAR shows active ground movement: establish a "
+                  "deformation-monitoring regime, identify the driver (dewatering, "
+                  "consolidation, mining, tectonics), and design foundations and "
+                  "services to tolerate the differential movement or mitigate the cause.")))
+    elif gm and gm.level == "Moderate":
+        recs.append(Recommendation(
+            category="Ground movement",
+            text=("Mild ground motion detected by InSAR — continue monitoring and "
+                  "allow for differential movement in settlement-sensitive structures.")))
+
     # Vegetation / site clearing (NDVI)
     if vegetation and vegetation.ndvi is not None:
         if vegetation.ndvi >= 0.6:
