@@ -12,7 +12,7 @@ from datetime import datetime, timezone
 
 from .schemas import (AssessRequest, Assessment, Climate, Hydrology, Location,
                       SeismicContext, SoilProfile, Terrain, Vegetation)
-from .services.http import new_client
+from .services.http import new_client, with_retry
 from .services import (geocoding, terrain as terrain_svc, soil as soil_svc,
                        seismic as seismic_svc, climate as climate_svc,
                        vegetation as veg_svc, hydrology as hydro_svc,
@@ -59,15 +59,16 @@ async def _resolve_location(req: AssessRequest, demo_mode: bool) -> Location:
 
 
 async def _gather_live(lat: float, lon: float):
-    """Fetch terrain, soil, seismic concurrently; tolerate partial failure."""
+    """Fetch terrain, soil, seismic etc. concurrently, each with retry; tolerate
+    partial failure (a source that still fails degrades to sample data)."""
     async with new_client() as client:
         results = await asyncio.gather(
-            terrain_svc.fetch_terrain(client, lat, lon),
-            soil_svc.fetch_soil(client, lat, lon),
-            seismic_svc.fetch_seismic(client, lat, lon),
-            climate_svc.fetch_climate(client, lat, lon),
-            veg_svc.fetch_vegetation(client, lat, lon),
-            hydro_svc.fetch_hydrology(client, lat, lon),
+            with_retry(lambda: terrain_svc.fetch_terrain(client, lat, lon)),
+            with_retry(lambda: soil_svc.fetch_soil(client, lat, lon)),
+            with_retry(lambda: seismic_svc.fetch_seismic(client, lat, lon)),
+            with_retry(lambda: climate_svc.fetch_climate(client, lat, lon)),
+            with_retry(lambda: veg_svc.fetch_vegetation(client, lat, lon)),
+            with_retry(lambda: hydro_svc.fetch_hydrology(client, lat, lon)),
             return_exceptions=True,
         )
     return results
