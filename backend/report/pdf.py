@@ -194,8 +194,22 @@ def build_pdf(a: Assessment) -> bytes:
             ("Source", vg.source or "-"),
         ], ss, [48 * mm, 130 * mm]))
 
+    # Hydrology
+    hy = a.hydrology
+    if hy and (hy.nearest_water_m is not None or hy.river_discharge_m3s is not None):
+        story.append(Paragraph("6. Hydrology &amp; Water Proximity", ss["H2"]))
+        story.append(_kv_table([
+            ("Nearest surface water", f"{hy.nearest_water_m} m ({hy.nearest_water_type})"
+             if hy.nearest_water_m is not None else "none within 5 km"),
+            ("River discharge (GloFAS)", f"{hy.river_discharge_m3s} m³/s"
+             if hy.river_discharge_m3s is not None else "-"),
+            ("Ground elevation", f"{a.terrain.elevation_m} m"
+             if a.terrain.elevation_m is not None else "-"),
+            ("Source", hy.source or "-"),
+        ], ss, [48 * mm, 130 * mm]))
+
     # Hazards
-    story.append(Paragraph("6. Geohazard Screening", ss["H2"]))
+    story.append(Paragraph("7. Geohazard Screening", ss["H2"]))
     hrows = [[Paragraph("<b>Hazard</b>", ss["CellB"]),
               Paragraph("<b>Rating</b>", ss["CellB"]),
               Paragraph("<b>Basis</b>", ss["CellB"])]]
@@ -218,7 +232,7 @@ def build_pdf(a: Assessment) -> bytes:
 
     # Seismic detail
     s = a.seismic
-    story.append(Paragraph("7. Seismic Context", ss["H2"]))
+    story.append(Paragraph("8. Seismic Context", ss["H2"]))
     story.append(_kv_table([
         ("Search radius", f"{s.search_radius_km:.0f} km"),
         ("M≥4 events on record", str(s.event_count)),
@@ -230,7 +244,7 @@ def build_pdf(a: Assessment) -> bytes:
     ], ss, [48 * mm, 130 * mm]))
 
     # Recommendations
-    story.append(Paragraph("8. Preliminary Recommendations", ss["H2"]))
+    story.append(Paragraph("9. Preliminary Recommendations", ss["H2"]))
     for r in a.recommendations:
         story.append(Paragraph(f"<b>{r.category}.</b> {r.text}", ss["Body"]))
         story.append(Spacer(1, 3))

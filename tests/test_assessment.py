@@ -24,10 +24,12 @@ def test_demo_assessment_complete():
     assert a.climate.frost_depth_m is not None
     assert a.vegetation.ndvi is not None
     assert a.vegetation.cover_class
+    assert a.hydrology.nearest_water_m is not None
     assert a.suitability is not None
     assert 0 <= a.suitability.score <= 100
     assert a.suitability.rating in ("Favourable", "Marginal", "Challenging", "Severe")
-    assert len(a.hazards) == 4
+    assert len(a.hazards) == 5
+    assert any(h.name == "Flooding / inundation" for h in a.hazards)
     assert a.recommendations
     assert a.disclaimer
 

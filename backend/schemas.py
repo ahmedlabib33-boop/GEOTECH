@@ -118,6 +118,20 @@ class Climate(BaseModel):
 
 
 # --------------------------------------------------------------------------- #
+# Hydrology (water proximity + riverine flood signal)
+# --------------------------------------------------------------------------- #
+class Hydrology(BaseModel):
+    nearest_water_m: Optional[float] = None
+    nearest_water_type: Optional[str] = None
+    nearest_water_lat: Optional[float] = None
+    nearest_water_lon: Optional[float] = None
+    river_discharge_m3s: Optional[float] = None
+    height_above_water_m: Optional[float] = None
+    source: Optional[str] = None
+    note: Optional[str] = None
+
+
+# --------------------------------------------------------------------------- #
 # Vegetation (Sentinel-2 / MODIS NDVI)
 # --------------------------------------------------------------------------- #
 class Vegetation(BaseModel):
@@ -189,6 +203,7 @@ class Assessment(BaseModel):
     seismic: SeismicContext
     climate: Climate = Field(default_factory=Climate)
     vegetation: Vegetation = Field(default_factory=Vegetation)
+    hydrology: Hydrology = Field(default_factory=Hydrology)
     parameters: GeotechParameters
     suitability: Optional[Suitability] = None
     hazards: list[HazardRating] = Field(default_factory=list)

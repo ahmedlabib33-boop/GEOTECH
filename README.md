@@ -29,6 +29,8 @@ a site-specific investigation by a qualified geotechnical engineer.
 | Climate (rainfall, temperature, frost) | [Open-Meteo ERA5](https://open-meteo.com/) reanalysis | annual precip + freezing-degree-days |
 | Vegetation / NDVI | [NASA ORNL MODIS](https://modis.ornl.gov/) MOD13Q1 (250 m) | topsoil/clearing, erosion, root reinforcement |
 | Sentinel-2 imagery | [EOX Sentinel-2 cloudless](https://s2maps.eu/) basemap | selectable map layer (modified Copernicus data) |
+| Water proximity | [OpenStreetMap Overpass](https://overpass-api.de/) | nearest river/lake/coastline + distance |
+| River discharge / flood | [Open-Meteo Flood API](https://open-meteo.com/en/docs/flood-api) (GloFAS) | riverine flood magnitude signal |
 | Geocoding | [OSM Nominatim](https://nominatim.org/) | place name ⇄ coordinates |
 | Satellite basemap | Esri World Imagery tiles | with street / topographic layers |
 
@@ -44,9 +46,12 @@ with no internet.
   SPT N, from standard reference ranges.
 - **Bearing capacity** — Terzaghi/Vesic general-shear, strip footing, FS = 3.0,
   with a slope-angle reduction factor.
-- **Geohazard screening** — slope instability/landslide, seismicity,
-  expansive/shrink-swell soil, and liquefaction potential, each rated
-  Low → Very High with its rationale.
+- **Geohazard screening** — flooding/inundation, slope instability/landslide,
+  seismicity, expansive/shrink-swell soil, and liquefaction potential, each
+  rated Low → Very High with its rationale.
+- **Flood & water proximity** — nearest surface water (with a map marker/line),
+  GloFAS river discharge, and a flood rating from low/flat terrain + water
+  proximity + discharge + rainfall.
 - **Settlement** — immediate elastic settlement for the trial footing (mm).
 - **Frost penetration** — modified-Berggren depth from freezing-degree-days →
   minimum founding depth.

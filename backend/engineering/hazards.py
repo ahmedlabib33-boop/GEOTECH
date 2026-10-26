@@ -1,10 +1,11 @@
 """Derive qualitative geohazard ratings from the collected data."""
 from __future__ import annotations
 
+import math
 from typing import Optional
 
-from ..schemas import (Climate, HazardRating, SeismicContext, SoilProfile,
-                       Terrain, Vegetation)
+from ..schemas import (Climate, HazardRating, Hydrology, SeismicContext,
+                       SoilProfile, Terrain, Vegetation)
 
 
 def _level(score: float) -> str:
@@ -103,10 +104,59 @@ def liquefaction_hazard(soil: SoilProfile, seismic: SeismicContext,
                         score=round(score, 2), rationale=rationale)
 
 
+def flood_hazard(terrain: Terrain, climate: Optional[Climate] = None,
+                 hydrology: Optional[Hydrology] = None) -> HazardRating:
+    elev = terrain.elevation_m
+    slope = terrain.slope_deg if terrain.slope_deg is not None else 99
+    precip = (climate.annual_precip_mm if climate else None) or 0.0
+    near = hydrology.nearest_water_m if hydrology else None
+    discharge = hydrology.river_discharge_m3s if hydrology else None
+
+    score = 0.0
+    # Low, flat ground pools water.
+    if elev is not None and elev < 10:
+        score += 0.30
+    elif elev is not None and elev < 30:
+        score += 0.15
+    if slope < 2:
+        score += 0.20
+    elif slope < 5:
+        score += 0.10
+    # Proximity to surface water.
+    if near is not None:
+        if near < 100:
+            score += 0.35
+        elif near < 500:
+            score += 0.22
+        elif near < 2000:
+            score += 0.10
+    # Riverine flood magnitude (GloFAS discharge) — log-scaled.
+    if discharge:
+        score += min(math.log10(discharge + 1) / 4.0, 1.0) * 0.20
+    # Wet climate.
+    score += min(precip / 2500.0, 1.0) * 0.10
+
+    bits = []
+    if elev is not None:
+        bits.append(f"elevation {elev:.0f} m")
+    if near is not None:
+        bits.append(f"nearest water ~{near:.0f} m ({hydrology.nearest_water_type})")
+    if discharge:
+        bits.append(f"river discharge ~{discharge:.0f} m³/s")
+    if precip:
+        bits.append(f"rainfall ~{precip:.0f} mm/yr")
+    rationale = ("; ".join(bits) or "limited hydrological data") + \
+        ". Low, flat ground near water with high flow/rainfall floods most readily."
+    return HazardRating(name="Flooding / inundation", level=_level(min(score, 1.0)),
+                        score=round(min(score, 1.0), 2), rationale=rationale)
+
+
 def all_hazards(terrain: Terrain, soil: SoilProfile, seismic: SeismicContext,
                 climate: Optional[Climate] = None,
-                vegetation: Optional[Vegetation] = None) -> list[HazardRating]:
+                vegetation: Optional[Vegetation] = None,
+                hydrology: Optional[Hydrology] = None) -> list[HazardRating]:
     return [
+        flood_hazard(terrain, climate, hydrology),
         landslide_hazard(terrain, soil, climate, vegetation),
         seismic_hazard(seismic),
         expansive_soil_hazard(soil),

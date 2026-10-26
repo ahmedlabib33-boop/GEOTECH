@@ -1,15 +1,17 @@
 """Generate preliminary recommendations from parameters and hazards."""
 from __future__ import annotations
 
-from ..schemas import (Climate, GeotechParameters, HazardRating, Recommendation,
-                       SeismicContext, SoilProfile, Terrain, Vegetation)
+from ..schemas import (Climate, GeotechParameters, HazardRating, Hydrology,
+                       Recommendation, SeismicContext, SoilProfile, Terrain,
+                       Vegetation)
 
 
 def build_recommendations(terrain: Terrain, soil: SoilProfile,
                           seismic: SeismicContext, params: GeotechParameters,
                           hazards: list[HazardRating],
                           climate: Climate | None = None,
-                          vegetation: Vegetation | None = None) -> list[Recommendation]:
+                          vegetation: Vegetation | None = None,
+                          hydrology: Hydrology | None = None) -> list[Recommendation]:
     recs: list[Recommendation] = []
     hz = {h.name: h for h in hazards}
 
@@ -115,6 +117,25 @@ def build_recommendations(terrain: Terrain, soil: SoilProfile,
             text=(f"{climate.wetness_class} climate (~{climate.annual_precip_mm:.0f} mm/yr): "
                   "design robust surface and subsurface drainage, erosion control, and "
                   "waterproofing; expect a shallow/variable water table.")))
+
+    # Flooding / water proximity
+    flood = hz.get("Flooding / inundation")
+    if flood and flood.level in ("High", "Very High"):
+        extra = ""
+        if hydrology and hydrology.nearest_water_m is not None:
+            extra = (f" Nearest water ~{hydrology.nearest_water_m:.0f} m "
+                     f"({hydrology.nearest_water_type}).")
+        recs.append(Recommendation(
+            category="Flood risk",
+            text=("Elevated flood/inundation exposure: obtain local flood maps and a "
+                  "design flood level, raise finished floor levels with freeboard, "
+                  "protect foundations against scour and buoyancy, and plan drainage "
+                  "and flood defences." + extra)))
+    elif flood and flood.level == "Moderate":
+        recs.append(Recommendation(
+            category="Flood risk",
+            text=("Moderate flood exposure: check the site against local flood-zone "
+                  "mapping and set finished floor levels with adequate freeboard.")))
 
     # Vegetation / site clearing (NDVI)
     if vegetation and vegetation.ndvi is not None:

@@ -29,12 +29,20 @@ const sentinel = L.tileLayer(
     attribution: "Sentinel-2 cloudless 2021 © EOX IT Services (contains modified Copernicus Sentinel data)" }
 );
 
+// Hydro reference overlay (rivers, lakes, coastline) — transparent, keyless.
+const hydro = L.tileLayer(
+  "https://services.arcgisonline.com/arcgis/rest/services/Reference/World_Hydro_Reference_Overlay/MapServer/tile/{z}/{y}/{x}",
+  { maxZoom: 19, opacity: 0.9, attribution: "Hydro reference © Esri" });
+
 L.control.layers(
   { "Satellite (Esri)": satellite, "Sentinel-2 (cloudless)": sentinel,
     "Street map": streets, "Topographic": topo },
-  { "Place labels": labels },
+  { "Place labels": labels, "Water / hydrology": hydro },
   { position: "topright", collapsed: true }
 ).addTo(map);
+
+// Layer group for the nearest-water marker + connector line (per assessment).
+const waterGroup = L.layerGroup().addTo(map);
 L.control.scale({ imperial: false }).addTo(map);
 
 let marker = null;
@@ -223,7 +231,19 @@ function render(a) {
   badge.textContent = a.data_mode === "live" ? "LIVE DATA" : "DEMO DATA";
   badge.className = "mode-badge " + a.data_mode;
 
-  const t = a.terrain, p = a.parameters, s = a.seismic, cl = a.climate || {}, vg = a.vegetation || {};
+  const t = a.terrain, p = a.parameters, s = a.seismic, cl = a.climate || {},
+    vg = a.vegetation || {}, hy = a.hydrology || {};
+
+  // Draw nearest-water marker + dashed connector line.
+  waterGroup.clearLayers();
+  if (hy.nearest_water_lat != null && hy.nearest_water_lon != null) {
+    const wll = [hy.nearest_water_lat, hy.nearest_water_lon];
+    L.circleMarker(wll, { radius: 6, color: "#39a0ff", fillColor: "#39a0ff", fillOpacity: 0.9 })
+      .bindTooltip(`Nearest water (${hy.nearest_water_type || "water"}) · ${hy.nearest_water_m} m`)
+      .addTo(waterGroup);
+    L.polyline([[a.location.lat, a.location.lon], wll],
+      { color: "#39a0ff", weight: 2, dashArray: "5,6", opacity: 0.8 }).addTo(waterGroup);
+  }
   let html = "";
 
   if (a.warnings && a.warnings.length)
@@ -283,6 +303,16 @@ function render(a) {
       <span class="sub" style="margin:0">${esc(vg.observation_date)}</span></div>
       <div class="meter"><div class="meter-fill" style="width:${np}%;background:${ncol}"></div></div>
       <div class="meter-why">${esc(vg.ground_description)}</div></div>`;
+  }
+
+  if (hy.nearest_water_m != null || hy.river_discharge_m3s != null) {
+    html += `<h3>💧 Hydrology &amp; water proximity</h3>`;
+    html += kv([
+      ["Nearest water", hy.nearest_water_m != null
+        ? `${hy.nearest_water_m} m (${esc(hy.nearest_water_type)})` : "none within 5 km"],
+      ["River discharge", hy.river_discharge_m3s != null ? hy.river_discharge_m3s + " m³/s" : "—"],
+      ["Ground elevation", t.elevation_m != null ? t.elevation_m + " m" : "—"],
+    ]);
   }
 
   html += `<h3>🌍 Seismic context</h3>`;

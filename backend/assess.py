@@ -11,12 +11,12 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Optional
 
-from .schemas import (AssessRequest, Assessment, Climate, Location, SeismicContext,
-                      SoilProfile, Terrain, Vegetation)
+from .schemas import (AssessRequest, Assessment, Climate, Hydrology, Location,
+                      SeismicContext, SoilProfile, Terrain, Vegetation)
 from .services.http import new_client
 from .services import (geocoding, terrain as terrain_svc, soil as soil_svc,
                        seismic as seismic_svc, climate as climate_svc,
-                       vegetation as veg_svc)
+                       vegetation as veg_svc, hydrology as hydro_svc)
 from .services import demo
 from .engineering.parameters import build_parameters
 from .engineering.hazards import all_hazards
@@ -65,6 +65,7 @@ async def _gather_live(lat: float, lon: float):
             seismic_svc.fetch_seismic(client, lat, lon),
             climate_svc.fetch_climate(client, lat, lon),
             veg_svc.fetch_vegetation(client, lat, lon),
+            hydro_svc.fetch_hydrology(client, lat, lon),
             return_exceptions=True,
         )
     return results
@@ -81,10 +82,11 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False) -> Assessm
         seismic = demo.demo_seismic(lat, lon)
         climate = demo.demo_climate(lat, lon)
         vegetation = demo.demo_vegetation(lat, lon)
+        hydrology = demo.demo_hydrology(lat, lon, terrain)
         data_mode = "demo"
     else:
         data_mode = "live"
-        t_res, s_res, q_res, c_res, v_res = await _gather_live(lat, lon)
+        t_res, s_res, q_res, c_res, v_res, h_res = await _gather_live(lat, lon)
 
         if isinstance(t_res, Terrain):
             terrain = t_res
@@ -119,12 +121,20 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False) -> Assessm
             warnings.append(f"Vegetation/NDVI source unavailable ({reason}); using sample data.")
             vegetation = demo.demo_vegetation(lat, lon)
 
+        if isinstance(h_res, Hydrology):
+            hydrology = h_res
+            if hydrology.height_above_water_m is None:
+                hydrology.height_above_water_m = terrain.elevation_m
+        else:
+            warnings.append(f"Hydrology source failed ({type(h_res).__name__}); using sample data.")
+            hydrology = demo.demo_hydrology(lat, lon, terrain)
+
     params = build_parameters(soil, terrain, climate,
                               req.foundation_width_m, req.foundation_depth_m)
-    hazards = all_hazards(terrain, soil, seismic, climate, vegetation)
+    hazards = all_hazards(terrain, soil, seismic, climate, vegetation, hydrology)
     suitability = build_suitability(hazards, params, terrain)
     recommendations = build_recommendations(terrain, soil, seismic, params, hazards,
-                                            climate, vegetation)
+                                            climate, vegetation, hydrology)
 
     return Assessment(
         project_name=req.project_name or "Untitled Site",
@@ -135,6 +145,7 @@ async def run_assessment(req: AssessRequest, demo_mode: bool = False) -> Assessm
         seismic=seismic,
         climate=climate,
         vegetation=vegetation,
+        hydrology=hydrology,
         parameters=params,
         suitability=suitability,
         hazards=hazards,

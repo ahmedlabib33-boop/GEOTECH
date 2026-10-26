@@ -10,8 +10,8 @@ import math
 
 from datetime import date
 
-from ..schemas import (Climate, Location, SeismicContext, SoilLayer, SoilProfile,
-                       Terrain, Vegetation)
+from ..schemas import (Climate, Hydrology, Location, SeismicContext, SoilLayer,
+                       SoilProfile, Terrain, Vegetation)
 from ..engineering.classification import usda_texture, usda_to_uscs
 
 DEPTHS = [("0-5cm", 0, 5), ("5-15cm", 5, 15), ("15-30cm", 15, 30),
@@ -94,6 +94,21 @@ def demo_vegetation(lat: float, lon: float) -> Vegetation:
                       cover_class=cls, ground_description=desc,
                       source="DEMO (sample data — not a real MODIS query)",
                       note="Offline demo mode.")
+
+
+def demo_hydrology(lat: float, lon: float, terrain: Terrain = None) -> Hydrology:
+    d = round(50 + _pseudo(lon + 7, lat) * 4000, 0)
+    # Offset the water point slightly from the site for the map line.
+    off = d / 111_320.0
+    types = ["river", "stream", "lake / pond / reservoir", "coastline / sea", "canal"]
+    t = types[int(_pseudo(lat, lon + 9) * len(types)) % len(types)]
+    disch = round(_pseudo(lon, lat + 4) ** 2 * 1500, 1)
+    return Hydrology(
+        nearest_water_m=d, nearest_water_type=t,
+        nearest_water_lat=round(lat + off, 6), nearest_water_lon=round(lon + off * 0.6, 6),
+        river_discharge_m3s=disch,
+        height_above_water_m=(terrain.elevation_m if terrain else None),
+        source="DEMO (sample data — not a real hydrology query)", note="Offline demo mode.")
 
 
 def demo_seismic(lat: float, lon: float) -> SeismicContext:

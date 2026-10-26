@@ -47,6 +47,20 @@ def test_ndvi_cover_classes():
     assert cover_class(0.8)[0].startswith("Dense")
 
 
+def test_flood_hazard_higher_near_water_lowland():
+    from backend.schemas import Terrain, Climate, Hydrology
+    from backend.engineering.hazards import flood_hazard
+    low = flood_hazard(Terrain(elevation_m=3, slope_deg=0.5),
+                       Climate(annual_precip_mm=1800),
+                       Hydrology(nearest_water_m=50, nearest_water_type="river",
+                                 river_discharge_m3s=800))
+    high_ground = flood_hazard(Terrain(elevation_m=800, slope_deg=18),
+                               Climate(annual_precip_mm=300),
+                               Hydrology(nearest_water_m=4800, nearest_water_type="stream"))
+    assert low.score > high_ground.score
+    assert low.name == "Flooding / inundation"
+
+
 def test_vegetation_reduces_landslide():
     from backend.schemas import Terrain, SoilProfile, Climate, Vegetation
     from backend.engineering.hazards import landslide_hazard

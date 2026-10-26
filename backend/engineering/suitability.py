@@ -17,7 +17,8 @@ def _rating(score: float) -> str:
 def build_suitability(hazards: list[HazardRating], params: GeotechParameters,
                       terrain: Terrain) -> Suitability:
     # Hazard component: 1 - weighted mean of hazard scores (seismic weighted up).
-    weights = {"Seismicity": 1.4, "Slope instability / landslide": 1.3}
+    weights = {"Seismicity": 1.4, "Slope instability / landslide": 1.3,
+               "Flooding / inundation": 1.2}
     wsum = sum(weights.get(h.name, 1.0) for h in hazards)
     hazard_mean = sum(h.score * weights.get(h.name, 1.0) for h in hazards) / wsum if hazards else 0
     hazard_component = (1 - hazard_mean) * 100
