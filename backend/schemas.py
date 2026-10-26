@@ -61,6 +61,11 @@ class AssessRequest(BaseModel):
     building_type: Optional[str] = Field(
         None, description="residential | office | retail | industrial | warehouse"
     )
+    design_pga_g: Optional[float] = Field(
+        None, ge=0, le=3,
+        description="Mapped design peak ground acceleration ag (g) from the national "
+                    "seismic code / hazard map; anchors the design response spectrum"
+    )
     borehole: Optional[Borehole] = Field(
         None, description="Measured ground data; overrides the satellite soil estimate"
     )
@@ -318,6 +323,36 @@ class WindSnowStudy(BaseModel):
     source: Optional[str] = None
 
 
+# --------------------------------------------------------------------------- #
+# Seismic design study (code-format elastic response spectrum)
+# --------------------------------------------------------------------------- #
+class SpectrumPoint(BaseModel):
+    period_s: float
+    sa_g: float
+
+
+class SeismicDesignStudy(BaseModel):
+    code_basis: str = "Eurocode 8 (EN 1998-1) elastic response spectrum, 5% damping"
+    ground_type: Optional[str] = None          # EC8 ground type A..E
+    site_class_source: Optional[str] = None     # how the ground type was derived
+    vs30_proxy_mps: Optional[float] = None
+    spectrum_type: Optional[int] = None         # EC8 Type 1 (Ms>5.5) or Type 2
+    design_ground_accel_g: Optional[float] = None   # ag on type-A ground (g)
+    ag_basis: Optional[str] = None              # mapped value vs catalogue screening
+    soil_factor_s: Optional[float] = None
+    t_b_s: Optional[float] = None
+    t_c_s: Optional[float] = None
+    t_d_s: Optional[float] = None
+    plateau_sa_g: Optional[float] = None        # constant-acceleration plateau ag*S*2.5
+    sa_short_g: Optional[float] = None           # Se(0.2 s)
+    sa_1s_g: Optional[float] = None              # Se(1.0 s)
+    importance_note: Optional[str] = None
+    spectrum: list[SpectrumPoint] = Field(default_factory=list)
+    assumptions: list[str] = Field(default_factory=list)
+    notes: list[str] = Field(default_factory=list)
+    source: Optional[str] = None
+
+
 class HazardRating(BaseModel):
     name: str
     level: str  # Low / Moderate / High / Very High
@@ -350,6 +385,7 @@ class Assessment(BaseModel):
     hvac: Optional[HvacStudy] = None
     underground: Optional[UndergroundStudy] = None
     wind_snow: Optional[WindSnowStudy] = None
+    seismic_design: Optional[SeismicDesignStudy] = None
     hazards: list[HazardRating] = Field(default_factory=list)
     recommendations: list[Recommendation] = Field(default_factory=list)
     commentary: Optional[str] = None  # optional LLM engineering commentary

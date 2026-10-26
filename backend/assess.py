@@ -25,6 +25,7 @@ from .engineering.recommendations import build_recommendations
 from .engineering.suitability import build_suitability
 from .engineering.hvac import build_hvac
 from .engineering.utilities import build_underground
+from .engineering.seismic_design import build_seismic_design
 from . import llm
 
 DISCLAIMER = (
@@ -197,6 +198,8 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
                                             climate, vegetation, hydrology)
     hvac = build_hvac(climate, req.building_floor_area_m2, req.building_type)
     underground = build_underground(soil, climate, hydrology, terrain, gw_depth)
+    seismic_design = build_seismic_design(
+        seismic if seismic_ok else None, params.vs30_proxy_mps, req.design_pga_g)
 
     assessment = Assessment(
         project_name=req.project_name or "Untitled Site",
@@ -216,6 +219,7 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
         hvac=hvac,
         underground=underground,
         wind_snow=wind_snow,
+        seismic_design=seismic_design,
         hazards=hazards,
         recommendations=recommendations,
         data_mode=data_mode,

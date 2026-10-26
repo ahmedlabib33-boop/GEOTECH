@@ -282,6 +282,8 @@ function payload() {
   if (!Number.isNaN(fl) && fl > 0) body.foundation_length_m = fl;
   const iv = parseFloat($("insar").value);
   if (!Number.isNaN(iv)) body.insar_velocity_mm_yr = iv;
+  const pga = parseFloat($("pga").value);
+  if (!Number.isNaN(pga) && pga >= 0) body.design_pga_g = pga;
   const ba = parseFloat($("bldgArea").value);
   if (!Number.isNaN(ba) && ba > 0) body.building_floor_area_m2 = ba;
   if ($("bldgType").value) body.building_type = $("bldgType").value;
@@ -437,6 +439,36 @@ function head(emoji, title, kind, name, url) {
     : `<span class="src-link">${esc(name)}</span>`;
   return `<div class="sec-head"><h3>${emoji} ${title}</h3>
     <span class="src-badge ${kind}" title="${label} data">${label}</span>${src}</div>`;
+}
+
+// Inline SVG line plot of an elastic response spectrum (period T vs Sₐ in g).
+function spectrumSvg(pts) {
+  if (!pts || pts.length < 2) return "";
+  const W = 320, H = 180, padL = 40, padB = 26, padT = 10, padR = 10;
+  const xmax = Math.max(...pts.map((p) => p.period_s)) || 4;
+  const ymax = (Math.max(...pts.map((p) => p.sa_g)) || 1) * 1.1;
+  const X = (t) => padL + (t / xmax) * (W - padL - padR);
+  const Y = (s) => H - padB - (s / ymax) * (H - padB - padT);
+  const d = pts.map((p, i) => (i ? "L" : "M") + X(p.period_s).toFixed(1) + " " + Y(p.sa_g).toFixed(1)).join(" ");
+  let ticks = "";
+  for (const tx of [0, 1, 2, 3, 4]) {
+    if (tx > xmax) continue;
+    ticks += `<line x1="${X(tx)}" y1="${H - padB}" x2="${X(tx)}" y2="${H - padB + 3}" stroke="#99a7b3"/>
+      <text x="${X(tx)}" y="${H - padB + 13}" font-size="8" fill="#889" text-anchor="middle">${tx}</text>`;
+  }
+  for (let k = 1; k <= 2; k++) {
+    const sy = (ymax / 1.1) * (k / 2);
+    ticks += `<line x1="${padL - 3}" y1="${Y(sy)}" x2="${padL}" y2="${Y(sy)}" stroke="#99a7b3"/>
+      <text x="${padL - 5}" y="${Y(sy) + 3}" font-size="8" fill="#889" text-anchor="end">${sy.toFixed(2)}</text>`;
+  }
+  return `<svg class="spectrum" viewBox="0 0 ${W} ${H}" width="100%" style="max-width:360px;margin:6px 0" role="img" aria-label="Elastic response spectrum">
+    <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${H - padB}" stroke="#99a7b3"/>
+    <line x1="${padL}" y1="${H - padB}" x2="${W - padR}" y2="${H - padB}" stroke="#99a7b3"/>
+    ${ticks}
+    <path d="${d}" fill="none" stroke="#2a7f62" stroke-width="2"/>
+    <text x="${(W) / 2}" y="${H - 2}" font-size="8.5" fill="#667" text-anchor="middle">period T (s)</text>
+    <text x="10" y="${padT + 2}" font-size="8.5" fill="#667">Sₐ (g)</text>
+  </svg>`;
 }
 
 function render(a) {
@@ -653,6 +685,26 @@ function render(a) {
     }
     html += kv(rows);
     for (const n of (wsd.notes || [])) html += `<div class="meter-why">${esc(n)}</div>`;
+  }
+
+  const sd = a.seismic_design;
+  if (sd) {
+    html += head("〰️", "Seismic design (response spectrum)", "estimated",
+      "Eurocode 8 (EN 1998-1)", null);
+    const rows = [
+      ["Ground type", u(sd.ground_type) + (sd.spectrum_type ? " — EC8 Type " + sd.spectrum_type : "")],
+    ];
+    if (sd.design_ground_accel_g != null) {
+      rows.push(["Design ground accel. ag", u(sd.design_ground_accel_g, " g")]);
+      rows.push(["Soil factor S / plateau Sₐ", u(sd.soil_factor_s) + " / " + u(sd.plateau_sa_g, " g")]);
+      rows.push(["Sₐ(0.2 s) / Sₐ(1.0 s)", u(sd.sa_short_g, " g") + " / " + u(sd.sa_1s_g, " g")]);
+      rows.push(["Corner periods T_B/T_C/T_D", u(sd.t_b_s) + " / " + u(sd.t_c_s) + " / " + u(sd.t_d_s) + " s"]);
+    }
+    html += kv(rows);
+    html += spectrumSvg(sd.spectrum);
+    if (sd.ag_basis) html += `<div class="meter-why"><b>ag basis.</b> ${esc(sd.ag_basis)}</div>`;
+    if (sd.importance_note) html += `<div class="meter-why">${esc(sd.importance_note)}</div>`;
+    for (const n of (sd.notes || [])) html += `<div class="meter-why">${esc(n)}</div>`;
   }
 
   html += `<h3>✅ Recommendations</h3>`;

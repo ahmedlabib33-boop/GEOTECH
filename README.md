@@ -79,6 +79,16 @@ hazards without real inputs are marked *Insufficient data*.
   Screening only — the governing code (ASCE 7, EN 1991-1-3/-1-4) with
   site-specific terrain, exposure, topography, shape and importance factors
   governs design.
+- **Seismic design study** — a **Eurocode 8 (EN 1998-1) elastic response
+  spectrum** `Se(T)` (plotted on screen and in the PDF): the **ground type**
+  (A–E, with soil factor S and corner periods TB/TC/TD) comes from the site
+  Vs30 proxy; the **spectrum type** (1 if Ms > 5.5, else 2) from the largest
+  catalogued earthquake; and the **design ground acceleration ag** from a
+  mapped code value you enter (authoritative) or, failing that, the
+  catalogue-derived screening PGA — clearly flagged as indicative, never a
+  fabricated hazard. Reports the plateau Sₐ, Sₐ(0.2 s) and Sₐ(1.0 s).
+  Screening only — final design uses the code's mapped hazard, importance and
+  behaviour/response-modification factors.
 
 ## Live satellite map tools
 

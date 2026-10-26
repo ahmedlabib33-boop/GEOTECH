@@ -59,6 +59,30 @@ def bearing_chart(points) -> Drawing:
         d.add(String(px(x) - 4, padB - 10, f"{x:g}", fontSize=6.5, fillColor=colors.grey))
     return d
 
+
+def spectrum_chart(points) -> Drawing:
+    """Line plot of the elastic response spectrum Sa(T) in g."""
+    W, H, padL, padB = 330, 150, 44, 26
+    d = Drawing(W, H)
+    xs = [p.period_s for p in points]
+    ys = [p.sa_g for p in points]
+    xmax = max(xs) or 4.0
+    ymax = max(max(ys), 0.01)
+    def px(x): return padL + x / xmax * (W - padL - 10)
+    def py(y): return padB + y / ymax * (H - padB - 14)
+    d.add(Line(padL, padB, W - 10, padB, strokeColor=colors.HexColor("#99a7b3")))
+    d.add(Line(padL, padB, padL, H - 10, strokeColor=colors.HexColor("#99a7b3")))
+    pts = []
+    for p in points:
+        pts += [px(p.period_s), py(p.sa_g)]
+    d.add(PolyLine(pts, strokeColor=ACCENT, strokeWidth=2))
+    d.add(String(padL - 2, H - 9, f"{ymax:.2f} g", fontSize=7, fillColor=colors.grey))
+    d.add(String(W / 2 - 24, 4, "period T (s)", fontSize=8, fillColor=colors.grey))
+    for x in (0, 1, 2, 3, 4):
+        if x <= xmax:
+            d.add(String(px(x) - 3, padB - 10, f"{x:g}", fontSize=6.5, fillColor=colors.grey))
+    return d
+
 NAVY = colors.HexColor("#1e3a5f")
 ACCENT = colors.HexColor("#2a7f62")
 LIGHT = colors.HexColor("#eef2f6")
@@ -440,6 +464,36 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
         if ws.assumptions:
             story.append(Paragraph("Assumptions: " + " ".join(ws.assumptions), ss["Disc"]))
         for n in (ws.notes or []):
+            story.append(Paragraph(n, ss["Disc"]))
+
+    # Seismic design (response spectrum)
+    sd = a.seismic_design
+    if sd:
+        story.append(Paragraph("Seismic Design — Response Spectrum (screening)", ss["H2"]))
+        sdrows = [
+            ("Code basis", sd.code_basis),
+            ("Ground type", (sd.ground_type or "-")
+             + (f" (EC8 Type {sd.spectrum_type})" if sd.spectrum_type else "")),
+        ]
+        if sd.design_ground_accel_g is not None:
+            sdrows += [
+                ("Design ground accel. ag", f"{_s(sd.design_ground_accel_g)} g"),
+                ("Soil factor S", _s(sd.soil_factor_s)),
+                ("Plateau Sa (ag x S x 2.5)", f"{_s(sd.plateau_sa_g)} g"),
+                ("Sa(0.2 s) / Sa(1.0 s)", f"{_s(sd.sa_short_g)} / {_s(sd.sa_1s_g)} g"),
+                ("Corner periods TB/TC/TD", f"{_s(sd.t_b_s)} / {_s(sd.t_c_s)} / {_s(sd.t_d_s)} s"),
+            ]
+        story.append(_kv_table(sdrows, ss, [50 * mm, 128 * mm]))
+        if sd.spectrum:
+            story.append(Spacer(1, 3))
+            story.append(Paragraph("<b>Elastic response spectrum</b> (horizontal, 5% damping)",
+                                   ss["Disc"]))
+            story.append(spectrum_chart(sd.spectrum))
+        if sd.ag_basis:
+            story.append(Paragraph("ag basis: " + sd.ag_basis, ss["Disc"]))
+        if sd.importance_note:
+            story.append(Paragraph(sd.importance_note, ss["Disc"]))
+        for n in (sd.notes or []):
             story.append(Paragraph(n, ss["Disc"]))
 
     # Data sources & provenance
