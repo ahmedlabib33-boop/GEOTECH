@@ -582,8 +582,41 @@ function exportCsv() {
   URL.revokeObjectURL(url);
 }
 
+function exportJson() {
+  if (!lastAssessment) return;
+  const blob = new Blob([JSON.stringify(lastAssessment, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const nm = (lastAssessment.project_name || "site").replace(/[^a-z0-9]+/gi, "_").slice(0, 40);
+  link.href = url; link.download = `geotech_${nm}.json`; link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function comparePdf() {
+  let sites = selectedSites();
+  if (sites.length < 2) sites = loadSaved();
+  if (sites.length < 2) { alert("Save at least two sites to produce a comparison PDF."); return; }
+  const btn = $("comparePdfBtn");
+  btn.textContent = "Building…"; btn.disabled = true;
+  try {
+    const r = await fetch("/api/compare.pdf", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sites: sites.map((s) => s.a) }),
+    });
+    if (!r.ok) throw new Error((await r.json()).detail || r.statusText);
+    const blob = await r.blob();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url; link.download = "geotech_comparison.pdf"; link.click();
+    URL.revokeObjectURL(url);
+  } catch (e) { alert("Comparison PDF failed: " + e.message); }
+  btn.textContent = "⬇ Comparison PDF"; btn.disabled = false;
+}
+
 $("saveBtn").onclick = saveCurrent;
+$("jsonBtn").onclick = exportJson;
 $("compareBtn").onclick = compareSites;
+$("comparePdfBtn").onclick = comparePdf;
 $("exportCsvBtn").onclick = exportCsv;
 $("clearSaved").onclick = () => { if (confirm("Remove all saved sites?")) { storeSaved([]); renderSaved(); $("compareWrap").hidden = true; } };
 renderSaved();

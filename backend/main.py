@@ -8,10 +8,16 @@ from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from pydantic import BaseModel
+
 from .schemas import AssessRequest, Assessment
 from .assess import run_assessment
-from .report.pdf import build_pdf
+from .report.pdf import build_pdf, build_compare_pdf
 from .services.sitemap import site_image
+
+
+class CompareRequest(BaseModel):
+    sites: list[Assessment]
 
 # Global offline switch: set GEOTECH_DEMO=1 to force sample data everywhere.
 FORCE_DEMO = os.environ.get("GEOTECH_DEMO", "").lower() in ("1", "true", "yes")
@@ -68,6 +74,17 @@ async def report_pdf(req: AssessRequest, demo: bool = False, ai: bool = False):
         media_type="application/pdf",
         headers={"Content-Disposition": f'attachment; filename="geotech_{safe}.pdf"'},
     )
+
+
+@app.post("/api/compare.pdf")
+async def compare_pdf(req: CompareRequest):
+    if len(req.sites) < 2:
+        raise HTTPException(status_code=400, detail="Provide at least two sites to compare.")
+    items = [(a.project_name or f"{a.location.lat:.3f},{a.location.lon:.3f}", a)
+             for a in req.sites]
+    pdf = build_compare_pdf(items)
+    return Response(content=pdf, media_type="application/pdf",
+                    headers={"Content-Disposition": 'attachment; filename="geotech_comparison.pdf"'})
 
 
 @app.get("/")

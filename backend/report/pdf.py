@@ -8,11 +8,57 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.units import mm
-from reportlab.platypus import (Image as RLImage, Paragraph, SimpleDocTemplate,
-                                Spacer, Table, TableStyle, HRFlowable)
+from reportlab.platypus import (Image as RLImage, PageBreak, Paragraph,
+                                SimpleDocTemplate, Spacer, Table, TableStyle,
+                                HRFlowable)
+from reportlab.graphics.shapes import Circle, Drawing, Line, PolyLine, Rect, String
 import io as _io
 
 from ..schemas import Assessment
+
+_RATING_COLORS = {"Favourable": "#2e7d32", "Marginal": "#f9a825",
+                  "Challenging": "#ef6c00", "Severe": "#c62828"}
+
+
+def hazard_chart(hazards) -> Drawing:
+    """Horizontal bar chart of hazard scores (0-1)."""
+    n = len(hazards)
+    row, pad = 16, 6
+    w, h = 470, n * row + pad
+    d = Drawing(w, h)
+    bx, bw = 150, 250
+    for i, hz in enumerate(hazards):
+        y = h - (i + 1) * row
+        d.add(String(0, y + 4, (hz.name[:30]), fontSize=8, fillColor=NAVY))
+        d.add(Rect(bx, y + 2, bw, 9, fillColor=LIGHT, strokeColor=None))
+        col = _LEVEL_COLORS.get(hz.level, colors.grey)
+        d.add(Rect(bx, y + 2, max(bw * float(hz.score), 1), 9, fillColor=col, strokeColor=None))
+        d.add(String(bx + bw + 6, y + 4, hz.level, fontSize=7.5, fillColor=colors.grey))
+    return d
+
+
+def bearing_chart(points) -> Drawing:
+    """Line plot of allowable bearing vs footing width."""
+    W, H, padL, padB = 330, 150, 42, 26
+    d = Drawing(W, H)
+    xs = [p.width_m for p in points]
+    ys = [p.allowable_kpa for p in points]
+    xmax, ymax = max(xs), max(max(ys), 10)
+    def px(x): return padL + x / xmax * (W - padL - 10)
+    def py(y): return padB + y / ymax * (H - padB - 14)
+    d.add(Line(padL, padB, W - 10, padB, strokeColor=colors.HexColor("#99a7b3")))
+    d.add(Line(padL, padB, padL, H - 10, strokeColor=colors.HexColor("#99a7b3")))
+    pts = []
+    for p in points:
+        pts += [px(p.width_m), py(p.allowable_kpa)]
+    d.add(PolyLine(pts, strokeColor=ACCENT, strokeWidth=2))
+    for p in points:
+        d.add(Circle(px(p.width_m), py(p.allowable_kpa), 2.5, fillColor=ACCENT, strokeColor=None))
+    d.add(String(padL, H - 9, f"{ymax:.0f} kPa", fontSize=7, fillColor=colors.grey))
+    d.add(String(W / 2 - 30, 4, "footing width B (m)", fontSize=8, fillColor=colors.grey))
+    for x in xs:
+        d.add(String(px(x) - 4, padB - 10, f"{x:g}", fontSize=6.5, fillColor=colors.grey))
+    return d
 
 NAVY = colors.HexColor("#1e3a5f")
 ACCENT = colors.HexColor("#2a7f62")
@@ -62,9 +108,40 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
                             title=f"Geotechnical Desk Study - {a.project_name}")
     story = []
 
+    # ---------------- COVER PAGE ----------------
     story.append(Paragraph("Preliminary Geotechnical Desk Study", ss["TitleBig"]))
     story.append(Paragraph("Satellite &amp; open-data site assessment", ss["Sub"]))
     story.append(HRFlowable(width="100%", thickness=1.4, color=ACCENT, spaceAfter=8))
+
+    if site_image:
+        try:
+            img = RLImage(_io.BytesIO(site_image), width=120 * mm, height=120 * mm)
+            img.hAlign = "CENTER"
+            story.append(img)
+            story.append(Paragraph(
+                f"Satellite view centred on {a.location.lat:.5f}, {a.location.lon:.5f} "
+                "(Esri World Imagery). Crosshair marks the assessed point.", ss["Disc"]))
+            story.append(Spacer(1, 6))
+        except Exception:
+            pass
+
+    if a.suitability:
+        su = a.suitability
+        col = colors.HexColor(_RATING_COLORS.get(su.rating, "#789"))
+        banner = Table([[
+            Paragraph(f'<font color="white" size="24"><b>{su.score:.0f}</b></font>'
+                      f'<font color="white" size="9">/100</font>', ss["Cell"]),
+            Paragraph(f'<font color="white" size="12"><b>Site Suitability: {su.rating}</b></font>'
+                      f'<br/><font color="white">{su.summary}</font>', ss["Cell"]),
+        ]], colWidths=[30 * mm, 148 * mm])
+        banner.setStyle(TableStyle([
+            ("BACKGROUND", (0, 0), (-1, -1), col),
+            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+            ("LEFTPADDING", (0, 0), (-1, -1), 10), ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+            ("TOPPADDING", (0, 0), (-1, -1), 9), ("BOTTOMPADDING", (0, 0), (-1, -1), 9),
+        ]))
+        story.append(banner)
+        story.append(Spacer(1, 8))
 
     mode = "LIVE remote-sensing data" if a.data_mode == "live" else "DEMO / sample data"
     story.append(_kv_table([
@@ -72,63 +149,29 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
         ("Location", a.location.display_name or f"{a.location.lat}, {a.location.lon}"),
         ("Coordinates", f"{a.location.lat:.5f}, {a.location.lon:.5f}"),
         ("Country", a.location.country or "-"),
+        ("Preliminary foundation", a.parameters.recommended_foundation or "-"),
+        ("Net allowable bearing", f"{a.parameters.allowable_bearing_kpa} kPa "
+         f"({'measured' if a.parameters.data_basis == 'borehole' else 'model'})"),
         ("Generated", a.generated_utc),
         ("Data mode", mode),
-    ], ss, [40 * mm, 138 * mm]))
+    ], ss, [44 * mm, 134 * mm]))
+
+    if a.suitability:
+        top_hz = sorted(a.hazards, key=lambda h: -h.score)[:2]
+        hz_txt = ", ".join(f"{h.name.split(' /')[0].split(' (')[0]} ({h.level})" for h in top_hz)
+        story.append(Spacer(1, 8))
+        story.append(Paragraph("Executive Summary", ss["H2"]))
+        story.append(Paragraph(
+            f"{a.suitability.summary} Leading constraints: {hz_txt}. "
+            "This is an automated preliminary desk study from remote-sensing data; "
+            "confirm all parameters by an intrusive ground investigation before design.",
+            ss["Body"]))
 
     if a.warnings:
         story.append(Spacer(1, 6))
         story.append(Paragraph("<b>Data notes:</b> " + " ".join(a.warnings), ss["Disc"]))
 
-    # Satellite site-locator image
-    if site_image:
-        try:
-            img = RLImage(_io.BytesIO(site_image), width=120 * mm, height=120 * mm)
-            img.hAlign = "CENTER"
-            story.append(Spacer(1, 8))
-            story.append(img)
-            story.append(Paragraph(
-                f"Satellite view centred on {a.location.lat:.5f}, {a.location.lon:.5f} "
-                "(Esri World Imagery). Crosshair marks the assessed point.", ss["Disc"]))
-        except Exception:
-            pass
-
-    # Executive summary
-    if a.suitability:
-        top_hz = sorted(a.hazards, key=lambda h: -h.score)[:2]
-        hz_txt = ", ".join(f"{h.name.split(' /')[0].split(' (')[0]} ({h.level})" for h in top_hz)
-        story.append(Paragraph("Executive Summary", ss["H2"]))
-        story.append(Paragraph(
-            f"<b>Site suitability: {a.suitability.rating} ({a.suitability.score:.0f}/100).</b> "
-            f"{a.suitability.summary} Leading constraints: {hz_txt}. "
-            f"Preliminary foundation: {a.parameters.recommended_foundation or 'see below'}, "
-            f"net allowable bearing ~{a.parameters.allowable_bearing_kpa:.0f} kPa "
-            f"(basis: {'measured borehole' if a.parameters.data_basis == 'borehole' else 'satellite model'}). "
-            "Confirm by intrusive ground investigation before design.", ss["Body"]))
-
-    # Suitability banner
-    if a.suitability:
-        su = a.suitability
-        col = {"Favourable": _LEVEL_COLORS["Low"], "Marginal": _LEVEL_COLORS["Moderate"],
-               "Challenging": _LEVEL_COLORS["High"], "Severe": _LEVEL_COLORS["Very High"]}.get(
-            su.rating, colors.grey)
-        story.append(Spacer(1, 8))
-        banner = Table([[
-            Paragraph(f'<font color="white" size="20"><b>{su.score:.0f}</b></font>'
-                      f'<font color="white" size="9">/100</font>', ss["Cell"]),
-            Paragraph(f'<font color="white"><b>Site Suitability: {su.rating}</b><br/>'
-                      f'{su.summary}</font>', ss["Cell"]),
-        ]], colWidths=[28 * mm, 150 * mm])
-        banner.setStyle(TableStyle([
-            ("BACKGROUND", (0, 0), (-1, -1), col),
-            ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
-            ("LEFTPADDING", (0, 0), (-1, -1), 8), ("RIGHTPADDING", (0, 0), (-1, -1), 8),
-            ("TOPPADDING", (0, 0), (-1, -1), 7), ("BOTTOMPADDING", (0, 0), (-1, -1), 7),
-        ]))
-        story.append(banner)
-        if su.drivers:
-            story.append(Spacer(1, 3))
-            story.append(Paragraph("Key drivers: " + "; ".join(su.drivers), ss["Disc"]))
+    story.append(PageBreak())
 
     # Terrain
     story.append(Paragraph("1. Terrain &amp; Topography", ss["H2"]))
@@ -215,12 +258,16 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
         ("Recommended foundation", p.recommended_foundation or "-"),
     ], ss, [48 * mm, 130 * mm]))
 
-    # Bearing vs footing width
+    # Bearing vs footing width (chart)
     if p.bearing_curve:
-        pairs = ", ".join(f"B={bp.width_m} m → {bp.allowable_kpa:.0f} kPa"
-                          for bp in p.bearing_curve)
-        story.append(Spacer(1, 2))
-        story.append(Paragraph(f"<b>Allowable bearing vs footing width:</b> {pairs}.", ss["Disc"]))
+        story.append(Spacer(1, 4))
+        story.append(Paragraph("<b>Allowable bearing vs footing width</b>", ss["Disc"]))
+        try:
+            story.append(bearing_chart(p.bearing_curve))
+        except Exception:
+            pairs = ", ".join(f"B={bp.width_m} m -> {bp.allowable_kpa:.0f} kPa"
+                              for bp in p.bearing_curve)
+            story.append(Paragraph(pairs, ss["Disc"]))
 
     # Climate
     cl = a.climate
@@ -269,6 +316,12 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
 
     # Hazards
     story.append(Paragraph("7. Geohazard Screening", ss["H2"]))
+    if a.hazards:
+        try:
+            story.append(hazard_chart(a.hazards))
+            story.append(Spacer(1, 4))
+        except Exception:
+            pass
     hrows = [[Paragraph("<b>Hazard</b>", ss["CellB"]),
               Paragraph("<b>Rating</b>", ss["CellB"]),
               Paragraph("<b>Basis</b>", ss["CellB"])]]
@@ -390,6 +443,83 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
 
 def _s(v) -> str:
     return "-" if v is None else str(v)
+
+
+def build_compare_pdf(items: list) -> bytes:
+    """Build a multi-site comparison PDF. `items` is a list of (name, Assessment)."""
+    from reportlab.lib.pagesizes import landscape
+    ss = _styles()
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=landscape(A4), topMargin=16 * mm,
+                            bottomMargin=14 * mm, leftMargin=14 * mm, rightMargin=14 * mm,
+                            title="GeoTech Satellite - Site Comparison")
+    story = [Paragraph("Site Comparison", ss["TitleBig"]),
+             Paragraph("Preliminary geotechnical desk study - multiple sites", ss["Sub"]),
+             HRFlowable(width="100%", thickness=1.2, color=ACCENT, spaceAfter=8)]
+
+    items = items[:8]  # keep columns readable
+    names = [n for n, _ in items]
+    assessments = [a for _, a in items]
+
+    def pv(a, f):
+        v = getattr(a.parameters, f, None)
+        return "-" if v is None else str(v)
+
+    rows = [["Metric"] + names]
+    rows.append(["Suitability"] + [f"{a.suitability.score:.0f} {a.suitability.rating}"
+                                   if a.suitability else "-" for a in assessments])
+    rows.append(["Coordinates"] + [f"{a.location.lat:.4f}, {a.location.lon:.4f}" for a in assessments])
+    rows.append(["Net allowable bearing (kPa)"] + [pv(a, "allowable_bearing_kpa") for a in assessments])
+    rows.append(["Settlement (mm)"] + [pv(a, "settlement_mm") for a in assessments])
+    rows.append(["Min founding depth (m)"] + [pv(a, "min_founding_depth_m") for a in assessments])
+    rows.append(["Seismic site class"] + [pv(a, "seismic_site_class") for a in assessments])
+    rows.append(["Basis"] + ["Measured" if a.parameters.data_basis == "borehole" else "Model"
+                             for a in assessments])
+    rows.append(["Recommended foundation"] + [pv(a, "recommended_foundation") for a in assessments])
+
+    hz_names = []
+    for a in assessments:
+        for h in a.hazards:
+            if h.name not in hz_names:
+                hz_names.append(h.name)
+    for name in hz_names:
+        line = [name]
+        for a in assessments:
+            match = next((h for h in a.hazards if h.name == name), None)
+            line.append(match.level if match else "-")
+        rows.append(line)
+
+    # Wrap cells in Paragraphs for wrapping.
+    data = [[Paragraph(f"<b>{c}</b>" if (i == 0 or j == 0) else c,
+                       ss["CellB"] if i == 0 else ss["Cell"]) for j, c in enumerate(r)]
+            for i, r in enumerate(rows)]
+    ncol = len(names) + 1
+    first = 52 * mm
+    rest = (landscape(A4)[0] - 28 * mm - first) / max(len(names), 1)
+    t = Table(data, colWidths=[first] + [rest] * len(names), repeatRows=1)
+    t.setStyle(TableStyle([
+        ("BACKGROUND", (0, 0), (-1, 0), NAVY),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, LIGHT]),
+        ("GRID", (0, 0), (-1, -1), 0.4, colors.HexColor("#c9d4de")),
+        ("VALIGN", (0, 0), (-1, -1), "MIDDLE"),
+        ("BACKGROUND", (0, 1), (0, -1), colors.HexColor("#0b16200a")),
+        ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3),
+    ]))
+    story.append(t)
+
+    best = max([a for a in assessments if a.suitability],
+               key=lambda a: a.suitability.score, default=None)
+    if best is not None:
+        bi = assessments.index(best)
+        story.append(Spacer(1, 6))
+        story.append(Paragraph(
+            f"Highest suitability: <b>{names[bi]}</b> "
+            f"({best.suitability.score:.0f}/100, {best.suitability.rating}).", ss["Body"]))
+    story.append(Spacer(1, 6))
+    story.append(Paragraph("Automated preliminary desk study. Confirm by intrusive ground "
+                           "investigation before design.", ss["Disc"]))
+    doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
+    return buf.getvalue()
 
 
 def _footer(canvas, doc):
