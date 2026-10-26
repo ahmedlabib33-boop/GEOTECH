@@ -131,7 +131,14 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
 
     # Availability of real data (drives real-only gating).
     terrain_ok = terrain.elevation_m is not None or terrain.slope_deg is not None
-    soil_ok = bool(soil.layers)
+    # Soil is usable only if at least one layer has a real classified texture.
+    # SoilGrids can return a 200 with all-null values (urban/rock/nodata pixel);
+    # that is NOT usable and must not fall back to generic default parameters.
+    soil_ok = any(l.usda_texture for l in soil.layers)
+    if soil.layers and not soil_ok and "unavailable" not in (soil.source or ""):
+        warnings.append("Soil (SoilGrids) has no data at this exact point "
+                        "(urban/rock/nodata pixel) — not substituted (real-only).")
+        soil.note = "SoilGrids returned no soil values at this point."
     seismic_ok = (seismic.source or "") != "unavailable"
 
     gw_depth = None

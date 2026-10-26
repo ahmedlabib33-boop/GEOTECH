@@ -60,6 +60,23 @@ def test_pdf_bytes_produced():
     assert len(pdf) > 3000
 
 
+def test_soil_nodata_is_unavailable_not_defaulted(monkeypatch):
+    """SoilGrids 200 with all-null values must yield 'unavailable', never
+    generic default parameters (no fabrication)."""
+    import backend.services.soil as soilmod
+    from backend.schemas import SoilProfile, SoilLayer
+
+    async def nodata(client, lat, lon):
+        return SoilProfile(source="ISRIC SoilGrids v2.0",
+                           layers=[SoilLayer(depth_label="0-5cm", top_cm=0, bottom_cm=5)])
+
+    monkeypatch.setattr(soilmod, "fetch_soil", nodata)
+    a = _run(AssessRequest(lat=30, lon=31))
+    assert a.parameters.data_basis == "unavailable"
+    assert a.parameters.allowable_bearing_kpa is None
+    assert any("no data at this exact point" in w for w in a.warnings)
+
+
 def test_bad_request_raises():
     import pytest
     with pytest.raises(ValueError):
