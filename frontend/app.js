@@ -1,7 +1,10 @@
 /* GeoTech Satellite — front-end logic (Leaflet map + assessment UI). */
 "use strict";
 
-// ---- Map with live satellite imagery + zoom ------------------------------
+// ---- Map with satellite imagery (latest available mosaic) + zoom ---------
+// NOTE: there is no real-time "live" satellite feed of an arbitrary point by
+// any public method — satellites revisit a spot only every few days and
+// basemaps are mosaics. These layers show the most recent AVAILABLE imagery.
 const map = L.map("map", { center: [20, 10], zoom: 3, worldCopyJump: true,
   maxZoom: 21, zoomControl: true });
 
@@ -37,7 +40,8 @@ const hydro = L.tileLayer(
   { maxZoom: 19, opacity: 0.9, attribution: "Hydro reference © Esri" });
 
 L.control.layers(
-  { "Satellite (Esri)": satellite, "Sentinel-2 (cloudless)": sentinel,
+  { "Satellite (Esri — latest mosaic)": satellite,
+    "Sentinel-2 cloudless (2021)": sentinel,
     "Street map": streets, "Topographic": topo },
   { "Place labels": labels, "Water / hydrology": hydro },
   { position: "topright", collapsed: true }
@@ -90,7 +94,7 @@ $("zoomSiteBtn").onclick = () => {
 $("shotBtn").onclick = () => {
   const c = map.getCenter();
   const z = Math.min(Math.round(map.getZoom()), 19);
-  flash("Capturing live satellite image…");
+  flash("Capturing satellite image…");
   const url = `/api/sitemap.png?lat=${c.lat.toFixed(6)}&lon=${c.lng.toFixed(6)}&zoom=${z}&grid=3`;
   // Fetch then download (so errors are visible instead of a broken file).
   fetch(url).then(async (r) => {
@@ -299,8 +303,8 @@ $("runBtn").onclick = async () => {
   const ai = $("ai").checked;
   $("runBtn").disabled = true;
   $("status").className = "status";
-  $("status").textContent = ai ? "Fetching live data & writing AI commentary…"
-    : "Fetching live satellite & geospatial data…";
+  $("status").textContent = ai ? "Fetching real data & writing AI commentary…"
+    : "Fetching satellite & geospatial data…";
   try {
     const r = await fetch(`/api/assess?ai=${ai}`, {
       method: "POST", headers: { "Content-Type": "application/json" },
@@ -554,7 +558,7 @@ function constructionClimatePanel(cc) {
 
 function render(a) {
   const badge = $("modeBadge");
-  badge.textContent = "LIVE DATA";
+  badge.textContent = "REAL DATA";
   badge.className = "mode-badge live";
 
   const t = a.terrain, p = a.parameters, s = a.seismic, cl = a.climate || {},

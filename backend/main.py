@@ -82,7 +82,8 @@ async def compare_pdf(req: CompareRequest):
 
 @app.get("/api/sitemap.png")
 async def sitemap_png(lat: float, lon: float, zoom: int = 17, grid: int = 3):
-    """Live satellite screenshot: stitched Esri World Imagery around the point."""
+    """Satellite image of the view: stitched Esri World Imagery (latest
+    available mosaic, not a real-time feed) around the point."""
     img = await site_image(lat, lon, zoom=zoom, grid=grid)
     if not img:
         raise HTTPException(status_code=502, detail="Could not build satellite image "

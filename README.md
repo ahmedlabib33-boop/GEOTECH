@@ -3,7 +3,7 @@
 **Automated preliminary geotechnical desk study for any point on Earth**, built
 from open remote-sensing and global geospatial datasets — no API keys required.
 
-Pick a location on a live satellite map (or search a place name) and the app
+Pick a location on a satellite map (or search a place name) and the app
 pulls terrain, soil and seismic data, runs standard geotechnical
 interpretation, and produces an on-screen report plus a downloadable PDF.
 
@@ -19,7 +19,7 @@ mobilising a drilling rig. Soil strength parameters and bearing capacities are
 **indicative screening estimates, not design values**, and must be confirmed by
 a site-specific investigation by a qualified geotechnical engineer.
 
-## Real data sources (live mode, the default)
+## Real data sources (fetched on demand, the default)
 
 | Domain | Source | Notes |
 |--------|--------|-------|
@@ -114,16 +114,24 @@ layer on top of the engineering, all from the same real data:
   **workable days per year** and a rating, heavy-rain / extreme-heat / frost
   day counts, and the wettest/driest months for programme planning.
 
-## Live satellite map tools
+## Satellite map tools
 
-The map streams **live Esri World Imagery** (true satellite), with HD zoom
-(native to z19, upscaled to z21, retina-aware) and on-map tools:
+The map streams **real Esri World Imagery** (true satellite) and the
+**Sentinel-2 cloudless** basemap, with HD zoom (native to z19, upscaled to z21,
+retina-aware) and on-map tools.
+
+> **Note on "live":** there is **no real-time satellite feed** of an arbitrary
+> point by any public (or consumer) method — imaging satellites revisit a given
+> location only every few days, and basemaps are mosaics built over months. The
+> map shows the **most recent AVAILABLE imagery**, not a live camera. Where a
+> Sentinel Hub key is set, the NDVI/NDWI/NDMI panel reports the actual
+> **observation date** for the site.
 
 - **🔍 Site** — fly to the pinned site at high zoom.
-- **📷 Shot** — download a **live satellite screenshot** of the current view
+- **📷 Shot** — download a **satellite screenshot** of the current view
   (stitched server-side from Esri tiles at the current zoom; endpoint
   `GET /api/sitemap.png?lat=&lon=&zoom=&grid=`).
-- **⏺ Rec** — record a screen/tab **video** of the live map (native
+- **⏺ Rec** — record a screen/tab **video** of the map (native
   `getDisplayMedia` + `MediaRecorder`; saves `.webm`). Needs a Chromium-based
   or modern browser and a one-time screen-share permission.
 - **⛶** — fullscreen the map.
@@ -271,7 +279,7 @@ is required (the app fetches real data and never fabricates).
 | `POST` | `/api/assess?ai=false` | JSON assessment for a location |
 | `POST` | `/api/report.pdf?ai=false` | PDF report download |
 | `POST` | `/api/compare.pdf` | multi-site comparison PDF |
-| `GET`  | `/api/sitemap.png` | live satellite screenshot |
+| `GET`  | `/api/sitemap.png` | satellite image of the view |
 | `GET`  | `/api/health` | liveness probe |
 
 Request body:
