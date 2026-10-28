@@ -363,6 +363,24 @@ class SeismicDesignStudy(BaseModel):
 # --------------------------------------------------------------------------- #
 # Overseas-bidding layer: country/regulatory, logistics, workability, bid risk
 # --------------------------------------------------------------------------- #
+class SatelliteImagery(BaseModel):
+    """Recency of Sentinel-2 coverage over the site (keyless Copernicus catalog).
+
+    Satellite imagery is never real-time; this reports how fresh the most recent
+    pass actually is, and the most recent *usable* (low-cloud) pass.
+    """
+    latest_pass_date: Optional[str] = None        # most recent S2 acquisition (any cloud)
+    latest_pass_cloud_pct: Optional[float] = None
+    latest_pass_days_ago: Optional[int] = None
+    latest_clear_date: Optional[str] = None        # most recent low-cloud acquisition
+    latest_clear_cloud_pct: Optional[float] = None
+    latest_clear_days_ago: Optional[int] = None
+    passes_in_window: Optional[int] = None         # scenes found in the look-back window
+    window_days: Optional[int] = None
+    source: Optional[str] = None
+    note: Optional[str] = None
+
+
 class CountryContext(BaseModel):
     country: Optional[str] = None
     country_code: Optional[str] = None
@@ -462,6 +480,7 @@ class Assessment(BaseModel):
     wind_snow: Optional[WindSnowStudy] = None
     seismic_design: Optional[SeismicDesignStudy] = None
     country_context: Optional[CountryContext] = None
+    imagery: Optional[SatelliteImagery] = None
     logistics: Optional[SiteLogistics] = None
     construction_climate: Optional[ConstructionClimate] = None
     bid_risk: Optional[BidRiskRegister] = None

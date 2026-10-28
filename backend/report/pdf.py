@@ -245,6 +245,26 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
             story.append(Paragraph(n, ss["Disc"]))
         story.append(Spacer(1, 4))
 
+    # Satellite imagery recency
+    im = a.imagery
+    if im and im.latest_pass_date:
+        story.append(Paragraph("Satellite Imagery Recency", ss["H2"]))
+        imrows = [("Latest pass (any cloud)",
+                   f"{im.latest_pass_date}"
+                   + (f" ({im.latest_pass_days_ago}d ago)" if im.latest_pass_days_ago is not None else "")
+                   + (f", {im.latest_pass_cloud_pct}% cloud" if im.latest_pass_cloud_pct is not None else ""))]
+        if im.latest_clear_date:
+            imrows.append(("Latest usable (low cloud)",
+                           f"{im.latest_clear_date}"
+                           + (f" ({im.latest_clear_days_ago}d ago)" if im.latest_clear_days_ago is not None else "")
+                           + (f", {im.latest_clear_cloud_pct}% cloud" if im.latest_clear_cloud_pct is not None else "")))
+        imrows.append((f"Passes in last {im.window_days or 120} d", str(im.passes_in_window or "-")))
+        story.append(_kv_table(imrows, ss, [50 * mm, 128 * mm]))
+        story.append(Paragraph(
+            "Satellite imagery is the latest AVAILABLE pass, not a real-time view — "
+            "Sentinel-2 revisits a site about every 5 days. " + (im.note or ""), ss["Disc"]))
+        story.append(Spacer(1, 4))
+
     # Terrain
     story.append(Paragraph("1. Terrain &amp; Topography", ss["H2"]))
     t = a.terrain

@@ -524,6 +524,27 @@ function countryPanel(c) {
   return h;
 }
 
+function imageryPanel(im) {
+  let h = head("🛰", "Satellite imagery recency", "measured",
+    "Copernicus / Sentinel-2", "https://dataspace.copernicus.eu/");
+  const rows = [];
+  if (im.latest_pass_date)
+    rows.push(["Latest pass (any cloud)",
+      im.latest_pass_date + (im.latest_pass_days_ago != null ? ` (${im.latest_pass_days_ago}d ago)` : "")
+      + (im.latest_pass_cloud_pct != null ? ` · ${im.latest_pass_cloud_pct}% cloud` : "")]);
+  if (im.latest_clear_date)
+    rows.push(["Latest usable (low-cloud)",
+      im.latest_clear_date + (im.latest_clear_days_ago != null ? ` (${im.latest_clear_days_ago}d ago)` : "")
+      + (im.latest_clear_cloud_pct != null ? ` · ${im.latest_clear_cloud_pct}% cloud` : "")]);
+  if (im.passes_in_window != null)
+    rows.push([`Passes in last ${im.window_days || 120}d`, im.passes_in_window]);
+  h += kv(rows);
+  h += `<div class="meter-why">Satellite imagery is the latest <b>available</b> pass, not a
+    real-time view — Sentinel-2 revisits a site about every 5 days.</div>`;
+  if (im.note) h += `<div class="meter-why">${esc(im.note)}</div>`;
+  return h;
+}
+
 function logisticsPanel(lo) {
   const LABEL = { seaport: "⚓ Nearest seaport", airport: "✈ Nearest airport",
     major_road: "🛣 Nearest major road", railway: "🚆 Nearest railway",
@@ -600,6 +621,19 @@ function render(a) {
   if (a.suitability) html += suitabilityGauge(a.suitability);
   if (a.bid_risk) html += bidRiskPanel(a.bid_risk);
   if (a.country_context) html += countryPanel(a.country_context);
+  if (a.imagery) html += imageryPanel(a.imagery);
+
+  // Update the map pill with the real Sentinel-2 acquisition date for this site.
+  const im = a.imagery, pill = $("livePill");
+  if (pill && im && (im.latest_clear_date || im.latest_pass_date)) {
+    const clear = im.latest_clear_date;
+    const d = clear || im.latest_pass_date;
+    pill.textContent = "🛰 S2 " + d;
+    pill.title = (clear
+      ? `Latest usable Sentinel-2 pass: ${clear} (${im.latest_clear_cloud_pct}% cloud, ${im.latest_clear_days_ago} days ago).`
+      : `Latest Sentinel-2 pass: ${im.latest_pass_date} (${im.latest_pass_cloud_pct}% cloud).`)
+      + " Imagery is the latest AVAILABLE pass, not a real-time feed.";
+  }
 
   if (a.commentary) {
     html += `<div class="commentary"><div class="commentary-head">🧠 AI engineering commentary</div>

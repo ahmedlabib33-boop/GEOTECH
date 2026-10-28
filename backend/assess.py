@@ -10,7 +10,7 @@ import asyncio
 from datetime import datetime, timezone
 
 from .schemas import (AssessRequest, Assessment, Climate, GeotechParameters,
-                      HazardRating, Hydrology, Location, SeismicContext,
+                      HazardRating, Hydrology, Location, SatelliteImagery, SeismicContext,
                       SiteLogistics, SoilProfile, Terrain, Vegetation, WindSnowStudy)
 from .services.http import new_client, with_retry
 from .services import (geocoding, terrain as terrain_svc, soil as soil_svc,
@@ -18,7 +18,7 @@ from .services import (geocoding, terrain as terrain_svc, soil as soil_svc,
                        vegetation as veg_svc, hydrology as hydro_svc,
                        sentinelhub as sh_svc, groundmotion as gm_svc,
                        windsnow as windsnow_svc, logistics as logistics_svc,
-                       cache)
+                       imagery as imagery_svc, cache)
 from .engineering.parameters import build_parameters
 from .engineering.borehole import build_parameters_from_borehole, has_usable_data
 from .engineering.hazards import all_hazards
@@ -120,11 +120,17 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
 
     data_mode = "live"
     if True:
-        (t_res, s_res, q_res, c_res, v_res, hl_res, ws_res), sentinel, ground_motion = \
+        (t_res, s_res, q_res, c_res, v_res, hl_res, ws_res), sentinel, ground_motion, imagery = \
             await asyncio.gather(
                 _gather_live(lat, lon),
                 sh_svc.fetch_sentinel(lat, lon),
-                gm_svc.fetch_ground_motion(lat, lon, req.insar_velocity_mm_yr))
+                gm_svc.fetch_ground_motion(lat, lon, req.insar_velocity_mm_yr),
+                # Keyless Sentinel-2 imagery recency; cached, and bulletproof so it
+                # never raises into this (non-return_exceptions) gather.
+                cache.cached("imagery", lat, lon,
+                             lambda: imagery_svc.fetch_imagery(lat, lon),
+                             usable=lambda im: isinstance(im, SatelliteImagery)
+                             and im.latest_pass_date is not None))
         # _hydro_then_logistics returns a (hydrology, logistics) pair; if the
         # whole coroutine itself errored, treat both as failed.
         if isinstance(hl_res, tuple):
@@ -280,6 +286,7 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
         wind_snow=wind_snow,
         seismic_design=seismic_design,
         country_context=country_context,
+        imagery=imagery if isinstance(imagery, SatelliteImagery) else None,
         logistics=logistics,
         construction_climate=construction_climate,
         bid_risk=bid_risk,

@@ -29,6 +29,7 @@ a site-specific investigation by a qualified geotechnical engineer.
 | Climate (rainfall, temperature, frost) | [Open-Meteo ERA5](https://open-meteo.com/) reanalysis | annual precip + freezing-degree-days |
 | Wind & snow extremes | [Open-Meteo ERA5](https://open-meteo.com/) archive | 15-yr annual-max gust + on-ground snow depth → Gumbel 50-yr design loads |
 | Logistics & access | [OpenStreetMap Overpass](https://overpass-api.de/) | nearest seaport / airport / major road / railway / town / quarry / grid |
+| Imagery recency | [Copernicus Data Space](https://dataspace.copernicus.eu/) catalogue (keyless) | latest Sentinel-2 pass date + cloud cover, and latest low-cloud pass |
 | Vegetation / NDVI | [NASA ORNL MODIS](https://modis.ornl.gov/) MOD13Q1 (250 m) | topsoil/clearing, erosion, root reinforcement |
 | Sentinel-2 imagery | [EOX Sentinel-2 cloudless](https://s2maps.eu/) basemap | selectable map layer (modified Copernicus data) |
 | Water proximity | [OpenStreetMap Overpass](https://overpass-api.de/) | nearest river/lake/coastline + distance |
@@ -126,6 +127,11 @@ retina-aware) and on-map tools.
 > map shows the **most recent AVAILABLE imagery**, not a live camera. Where a
 > Sentinel Hub key is set, the NDVI/NDWI/NDMI panel reports the actual
 > **observation date** for the site.
+>
+> Every assessment shows an **imagery-recency** panel (keyless, via the
+> Copernicus catalogue): the latest Sentinel-2 pass date + cloud cover, and the
+> most recent *usable* low-cloud pass — the honest answer to "how fresh is the
+> picture?". The map pill updates to that date.
 
 - **🔍 Site** — fly to the pinned site at high zoom.
 - **📷 Shot** — download a **satellite screenshot** of the current view

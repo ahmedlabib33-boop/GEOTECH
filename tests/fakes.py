@@ -9,8 +9,9 @@ import math
 from datetime import date
 
 from backend.schemas import (Climate, GroundMotion, Hydrology, Location,
-                             LogisticsPOI, SeismicContext, SiteLogistics, SoilLayer,
-                             SoilProfile, Terrain, Vegetation, WindSnowStudy)
+                             LogisticsPOI, SatelliteImagery, SeismicContext,
+                             SiteLogistics, SoilLayer, SoilProfile, Terrain,
+                             Vegetation, WindSnowStudy)
 from backend.engineering.classification import usda_texture, usda_to_uscs
 
 DEPTHS = [("0-5cm", 0, 5), ("5-15cm", 5, 15), ("15-30cm", 15, 30),
@@ -130,6 +131,21 @@ def fake_logistics(lat: float, lon: float) -> SiteLogistics:
     return SiteLogistics(pois=pois, nearest_port_km=port, nearest_airport_km=air,
                          nearest_major_road_km=road, nearest_urban_km=urban,
                          mobilization_rating=rating, access_note=note, source="TEST logistics")
+
+
+def fake_imagery(lat: float, lon: float) -> SatelliteImagery:
+    from datetime import date
+    pass_ago = int(_pseudo(lat, lon + 21) * 5)            # 0-4 days
+    clear_ago = pass_ago + int(_pseudo(lat + 22, lon) * 10)
+    today = date.today().toordinal()
+    return SatelliteImagery(
+        latest_pass_date=date.fromordinal(today - pass_ago).isoformat(),
+        latest_pass_cloud_pct=round(_pseudo(lon + 23, lat) * 100, 1),
+        latest_pass_days_ago=pass_ago,
+        latest_clear_date=date.fromordinal(today - clear_ago).isoformat(),
+        latest_clear_cloud_pct=round(_pseudo(lat, lon + 24) * 18, 1),
+        latest_clear_days_ago=clear_ago, passes_in_window=12, window_days=120,
+        source="TEST Sentinel-2 catalogue")
 
 
 def fake_seismic(lat: float, lon: float) -> SeismicContext:
