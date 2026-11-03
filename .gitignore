@@ -7,3 +7,5 @@ __pycache__/
 reports_out/
 *.log
 .env
+.vercel
+.env*
