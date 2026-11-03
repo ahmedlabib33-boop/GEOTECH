@@ -5,7 +5,7 @@ sources, through the engineering interpretation layer, and into the report.
 """
 from __future__ import annotations
 
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -29,6 +29,45 @@ class Borehole(BaseModel):
     layers: list[BoreholeLayer] = Field(default_factory=list)
     groundwater_depth_m: Optional[float] = Field(None, ge=0, le=200)
     reference: Optional[str] = Field(None, description="Log ID / investigation ref")
+
+
+class RfReading(BaseModel):
+    """One non-content spectrum-power sample from an authorised RF receiver."""
+
+    frequency_mhz: float = Field(gt=0, le=300_000)
+    power_dbm: float = Field(ge=-220, le=100)
+
+
+class RfSurveyRequest(BaseModel):
+    """A user-imported, non-content RF spectrum survey.
+
+    GeoTech never controls an RF receiver or captures communications.  This
+    input is limited to frequency/power readings exported by an authorised
+    operator from their own receiver or spectrum analyser.
+    """
+
+    authorized_receiver: Literal[True] = True
+    receiver_name: Optional[str] = Field(None, max_length=120)
+    captured_utc: Optional[str] = Field(None, max_length=40)
+    occupancy_threshold_dbm: float = Field(-90.0, ge=-200, le=100)
+    readings: list[RfReading] = Field(min_length=1, max_length=20_000)
+
+
+class RfSurveySummary(BaseModel):
+    """Compact, provenance-preserving summary used in an assessment/report."""
+
+    receiver_name: Optional[str] = None
+    captured_utc: Optional[str] = None
+    frequency_low_mhz: float
+    frequency_high_mhz: float
+    sample_count: int
+    occupancy_threshold_dbm: float
+    occupied_sample_count: int
+    occupied_percent: float
+    peak_frequency_mhz: float
+    peak_power_dbm: float
+    source: str
+    note: str
 
 
 class AssessRequest(BaseModel):
@@ -68,6 +107,9 @@ class AssessRequest(BaseModel):
     )
     borehole: Optional[Borehole] = Field(
         None, description="Measured ground data; overrides the satellite soil estimate"
+    )
+    rf_survey: Optional[RfSurveyRequest] = Field(
+        None, description="Authorised non-content RF spectrum readings imported by the user"
     )
 
 
@@ -473,6 +515,7 @@ class Assessment(BaseModel):
     hydrology: Hydrology = Field(default_factory=Hydrology)
     ground_motion: Optional[GroundMotion] = None
     borehole: Optional[Borehole] = None
+    rf_survey: Optional[RfSurveySummary] = None
     parameters: GeotechParameters
     suitability: Optional[Suitability] = None
     hvac: Optional[HvacStudy] = None

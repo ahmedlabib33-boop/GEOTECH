@@ -328,6 +328,22 @@ def build_pdf(a: Assessment, site_image: bytes | None = None) -> bytes:
             story.append(Paragraph(
                 f"Measured groundwater depth: <b>{a.borehole.groundwater_depth_m} m</b>.", ss["Disc"]))
 
+    # RF spectrum survey (user-imported non-content measurements only)
+    rf = a.rf_survey
+    if rf:
+        story.append(Paragraph("RF Spectrum Survey (measured, user-supplied)", ss["H2"]))
+        story.append(_kv_table([
+            ("Receiver / analyser", rf.receiver_name or "Not named"),
+            ("Capture time", rf.captured_utc or "Not supplied"),
+            ("Frequency coverage", f"{rf.frequency_low_mhz}–{rf.frequency_high_mhz} MHz"),
+            ("Samples at/above threshold",
+             f"{rf.occupied_sample_count}/{rf.sample_count} ({rf.occupied_percent}%) "
+             f"at {rf.occupancy_threshold_dbm} dBm"),
+            ("Peak reading", f"{rf.peak_power_dbm} dBm at {rf.peak_frequency_mhz} MHz"),
+            ("Source", rf.source),
+        ], ss, [48 * mm, 130 * mm]))
+        story.append(Paragraph(rf.note, ss["Disc"]))
+
     # Parameters
     p = a.parameters
     basis = ("<font color=\"#2e7d32\"><b>Measured — from borehole</b></font>"

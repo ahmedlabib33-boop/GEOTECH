@@ -273,6 +273,109 @@ function readBorehole() {
   return { layers, groundwater_depth_m: gw };
 }
 
+// ---- RF spectrum survey (user-imported, non-content readings only) -------
+// A web page has no RF receiver. This parser accepts measurements exported by
+// an authorised receiver/spectrum analyser; it neither tunes hardware nor
+// decodes or records communications.
+const MAX_RF_READINGS = 20_000;
+let rfReadings = [];
+
+function parseRfCsv(text) {
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+  if (!lines.length) return { rows: [], error: "No spectrum data found." };
+  const delimiter = lines[0].includes("\t") ? "\t" : (lines[0].includes(";") ? ";" : ",");
+  const split = (line) => line.split(delimiter).map((cell) => cell.trim().replace(/^"|"$/g, ""));
+  const number = (value) => Number(String(value ?? "").trim());
+  const rows = [];
+  let truncated = false;
+  const add = (frequencyMhz, powerDbm) => {
+    if (!Number.isFinite(frequencyMhz) || !Number.isFinite(powerDbm) ||
+        frequencyMhz <= 0 || frequencyMhz > 300000 || powerDbm < -220 || powerDbm > 100) return;
+    if (rows.length >= MAX_RF_READINGS) { truncated = true; return; }
+    rows.push({ frequency_mhz: frequencyMhz, power_dbm: powerDbm });
+  };
+
+  const first = split(lines[0]).map((cell) => cell.toLowerCase());
+  const frequencyColumn = first.findIndex((cell) => /freq|frequency/.test(cell));
+  const powerColumn = first.findIndex((cell) => /power|dbm|level|signal/.test(cell));
+  const hasSimpleHeader = frequencyColumn >= 0 && powerColumn >= 0;
+
+  if (hasSimpleHeader) {
+    const frequencyIsHz = /(^|[^m])hz|hertz/.test(first[frequencyColumn]) &&
+      !/mhz|megahertz/.test(first[frequencyColumn]);
+    for (const line of lines.slice(1)) {
+      const cells = split(line);
+      add(number(cells[frequencyColumn]) / (frequencyIsHz ? 1_000_000 : 1), number(cells[powerColumn]));
+    }
+  } else {
+    for (const line of lines) {
+      const cells = split(line);
+      // rtl_power format: date,time,start Hz,stop Hz,step Hz,samples,dBm,dBm,...
+      const startHz = number(cells[2]), stopHz = number(cells[3]), stepHz = number(cells[4]);
+      if (cells.length >= 7 && Number.isFinite(startHz) && Number.isFinite(stopHz) &&
+          Number.isFinite(stepHz) && startHz > 0 && stopHz >= startHz && stepHz > 0) {
+        for (let index = 6; index < cells.length; index++)
+          add((startHz + (index - 6) * stepHz) / 1_000_000, number(cells[index]));
+        continue;
+      }
+      // Header-free simple CSV/TSV: frequency_mhz,power_dbm.
+      add(number(cells[0]), number(cells[1]));
+    }
+  }
+
+  if (!rows.length) {
+    return { rows: [], error: "No valid readings. Use frequency_mhz,power_dbm rows or an rtl_power CSV export." };
+  }
+  return { rows, error: null, truncated };
+}
+
+function loadRfCsv(text) {
+  const result = parseRfCsv(text);
+  const msg = $("rfCsvMsg");
+  if (result.error) {
+    rfReadings = [];
+    msg.textContent = "⚠ " + result.error;
+    return;
+  }
+  rfReadings = result.rows;
+  const peak = rfReadings.reduce((best, row) => row.power_dbm > best.power_dbm ? row : best, rfReadings[0]);
+  msg.textContent = `✔ Loaded ${rfReadings.length.toLocaleString()} non-content spectrum sample(s). ` +
+    `Peak ${peak.power_dbm.toFixed(1)} dBm at ${peak.frequency_mhz.toFixed(6)} MHz.` +
+    (result.truncated ? ` Only the first ${MAX_RF_READINGS.toLocaleString()} valid samples were retained.` : "");
+  document.querySelector("details.rf-survey").open = true;
+}
+
+$("rfLoadCsv").onclick = () => loadRfCsv($("rfCsv").value);
+$("rfFile").onchange = (event) => {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = () => { $("rfCsv").value = reader.result; loadRfCsv(reader.result); };
+  reader.readAsText(file);
+};
+
+function readRfSurvey() {
+  if (!rfReadings.length) return { survey: null, error: null };
+  if (!$("rfAuthorized").checked) {
+    return { survey: null, error: "Confirm that you are authorised to collect the imported RF spectrum readings." };
+  }
+  const captured = $("rfCapturedUtc").value;
+  const threshold = parseFloat($("rfThreshold").value);
+  if (Number.isNaN(threshold) || threshold < -200 || threshold > 100) {
+    return { survey: null, error: "RF occupancy threshold must be between -200 and 100 dBm." };
+  }
+  return {
+    survey: {
+      authorized_receiver: true,
+      receiver_name: $("rfReceiver").value.trim() || null,
+      captured_utc: captured ? `${captured}${captured.length === 16 ? ":00" : ""}Z` : null,
+      occupancy_threshold_dbm: threshold,
+      readings: rfReadings,
+    },
+    error: null,
+  };
+}
+
 // ---- Run assessment ------------------------------------------------------
 function payload() {
   const lat = parseFloat($("lat").value), lon = parseFloat($("lon").value);
@@ -294,12 +397,16 @@ function payload() {
   if ($("bldgType").value) body.building_type = $("bldgType").value;
   const bh = readBorehole();
   if (bh) body.borehole = bh;
+  const rf = readRfSurvey();
+  if (rf.error) return { __error: rf.error };
+  if (rf.survey) body.rf_survey = rf.survey;
   return body;
 }
 
 $("runBtn").onclick = async () => {
   const body = payload();
   if (!body) { setErr("Pick a location first (click the map or search)."); return; }
+  if (body.__error) { setErr(body.__error); return; }
   const ai = $("ai").checked;
   $("runBtn").disabled = true;
   $("status").className = "status";
@@ -690,6 +797,19 @@ function render(a) {
     html += `</table>`;
     if (a.borehole.groundwater_depth_m != null)
       html += `<div class="kv"><div class="k">Groundwater depth</div><div class="v">${a.borehole.groundwater_depth_m} m</div></div>`;
+  }
+
+  const rf = a.rf_survey;
+  if (rf) {
+    html += head("📻", "RF spectrum survey", "measured", rf.source, null);
+    html += kv([
+      ["Receiver", rf.receiver_name || "Not named"],
+      ["Capture time", rf.captured_utc || "Not supplied"],
+      ["Frequency coverage", `${rf.frequency_low_mhz}–${rf.frequency_high_mhz} MHz`],
+      ["Samples at/above threshold", `${rf.occupied_sample_count}/${rf.sample_count} (${rf.occupied_percent}%) at ${rf.occupancy_threshold_dbm} dBm`],
+      ["Peak reading", `${rf.peak_power_dbm} dBm at ${rf.peak_frequency_mhz} MHz`],
+    ]);
+    html += `<div class="rf-note">⚠ ${esc(rf.note)}</div>`;
   }
 
   html += head("🏔️", "Terrain", "measured", "NASA SRTM / OpenTopoData", "https://www.opentopodata.org/");

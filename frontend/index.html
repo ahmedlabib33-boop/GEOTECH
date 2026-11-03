@@ -95,6 +95,34 @@
             <div id="bhCsvMsg" class="bh-hint"></div>
           </div>
         </details>
+        <details class="rf-survey">
+          <summary>📻 RF spectrum survey (optional — authorised receiver only)</summary>
+          <p class="rf-hint">This browser cannot sense radio waves on its own. Import only
+            non-content spectrum readings (frequency and power) exported by a receiver or
+            spectrum analyser you are authorised to operate. No communications are decoded
+            or recorded.</p>
+          <label class="checkline rf-consent">
+            <input id="rfAuthorized" type="checkbox" /> I am authorised to collect these
+            non-content spectrum measurements
+          </label>
+          <label>Receiver / analyser name (optional)
+            <input id="rfReceiver" type="text" maxlength="120" placeholder="e.g. site spectrum analyser" /></label>
+          <div class="grid2">
+            <label>Capture time (UTC, optional)
+              <input id="rfCapturedUtc" type="datetime-local" /></label>
+            <label>Occupancy threshold (dBm)
+              <input id="rfThreshold" type="number" step="1" value="-90" /></label>
+          </div>
+          <div class="rf-import">
+            <div class="rf-import-head">
+              <span>Import receiver scan</span>
+              <input id="rfFile" type="file" accept=".csv,.txt,.tsv" />
+            </div>
+            <textarea id="rfCsv" rows="4" placeholder="Paste frequency_mhz,power_dbm rows&#10;88.5,-97&#10;98.1,-72.4&#10;&#10;Also accepts rtl_power CSV exports (Hz range + dB bins)."></textarea>
+            <button id="rfLoadCsv" type="button" class="rf-add">Load spectrum data</button>
+            <div id="rfCsvMsg" class="rf-hint"></div>
+          </div>
+        </details>
         <label class="checkline">
           <input id="ai" type="checkbox" /> AI engineering commentary (needs API key)
         </label>

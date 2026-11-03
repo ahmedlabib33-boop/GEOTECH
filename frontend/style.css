@@ -116,6 +116,19 @@ table.soil td{padding:4px;border-bottom:1px solid var(--line);text-align:center;
 .bh-add{margin-top:8px;width:100%;padding:8px;border:1px dashed var(--accent);border-radius:8px;background:transparent;color:#8fe0bd;cursor:pointer;font-weight:600}
 .bh-note{font-size:11.5px;color:#8fe0bd;background:#0b1a16;border:1px solid #1f3d33;border-radius:8px;padding:7px 9px;margin:6px 0}
 
+/* ---- authorised RF spectrum import (non-content readings only) ---- */
+.rf-survey{background:#0d1a26;border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.rf-survey summary{cursor:pointer;font-size:12.5px;color:#b5c9ff;font-weight:600}
+.rf-hint{font-size:11px;color:var(--muted);margin:8px 0;line-height:1.45}
+.rf-consent{font-size:11.5px;color:#d3defe;margin:8px 0}
+.rf-import{margin-top:10px;padding-top:8px;border-top:1px dashed var(--line)}
+.rf-import-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;color:var(--muted);margin-bottom:6px}
+.rf-import-head input[type=file]{font-size:10px;color:var(--muted);width:auto}
+#rfCsv{width:100%;margin-top:0;padding:8px;border-radius:8px;border:1px solid var(--line);background:#0a131c;color:var(--text);font-family:ui-monospace,Menlo,monospace;font-size:11px;resize:vertical}
+.rf-add{margin-top:8px;width:100%;padding:8px;border:1px dashed #718bd0;border-radius:8px;background:transparent;color:#b5c9ff;cursor:pointer;font-weight:600}
+.rf-add:hover{border-color:#b5c9ff;background:#111d35}
+.rf-note{font-size:11.5px;color:#b5c9ff;background:#101a30;border:1px solid #31446d;border-radius:8px;padding:7px 9px;margin:6px 0}
+
 /* ---- saved sites & comparison ---- */
 .saved-head{display:flex;justify-content:space-between;align-items:center}
 .link-btn{background:none;border:none;color:#7fb0d6;font-size:11px;cursor:pointer;padding:2px 4px}

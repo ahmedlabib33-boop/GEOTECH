@@ -30,6 +30,7 @@ from .engineering.seismic_design import build_seismic_design
 from .engineering.country import build_country_context
 from .engineering.construction_climate import build_construction_climate
 from .engineering.bid import build_bid_risk
+from .engineering.rf import summarize_rf_survey
 from . import llm
 
 DISCLAIMER = (
@@ -265,6 +266,7 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
     construction_climate = build_construction_climate(climate)
     bid_risk = build_bid_risk(hazards, params, logistics, construction_climate,
                               country_context)
+    rf_survey = summarize_rf_survey(req.rf_survey)
 
     assessment = Assessment(
         project_name=req.project_name or "Untitled Site",
@@ -279,6 +281,7 @@ async def run_assessment(req: AssessRequest, ai_commentary: bool = False) -> Ass
         hydrology=hydrology,
         ground_motion=ground_motion,
         borehole=req.borehole if has_usable_data(req.borehole) else None,
+        rf_survey=rf_survey,
         parameters=params,
         suitability=suitability,
         hvac=hvac,
